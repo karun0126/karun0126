@@ -1,0 +1,869 @@
+/* ==========================================================================
+   KARUN PANDEY — PORTFOLIO DESIGN SYSTEM & STYLES (NEXT.JS)
+   Pixel-perfect implementation with Framer Motion & Responsive Canvas
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,700;1,400;1,700&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@700;800&display=swap');
+
+/* Fallback & Custom Fonts */
+@font-face { font-family: "Dirty Ego"; src: local("Dirty Ego"); font-display: swap; }
+@font-face { font-family: "Darlington Demo"; src: local("Darlington Demo"); font-display: swap; }
+@font-face { font-family: "Dotum"; src: local("Dotum"); font-display: swap; }
+
+:root {
+  --bg-pitch: #0a0a0a;
+  --bg-dark: #0e0e0e;
+  --bg-card: #141414;
+  --ink: #1a1a1a;
+  --red: #931414;
+  --red-bright: #e50914;
+  --script-red: #941616;
+  --gold-muted: #d4c8b8;
+  --text-pure: #ffffff;
+  --text-body: #cfcfcf;
+  --text-muted: #777777;
+  
+  --font-display: "Dirty Ego", "Cinzel", "Syne", Impact, sans-serif;
+  --font-script: "Darlington Demo", "Playfair Display", "Brush Script MT", cursive;
+  --font-ui: "Dotum", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "Space Mono", "Intel One Mono", "Consolas", monospace;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  background-color: var(--bg-pitch);
+  color: var(--text-pure);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  scrollbar-gutter: stable;
+}
+
+body {
+  overflow-x: hidden;
+  background: var(--bg-pitch);
+  line-height: 1.5;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #080808;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--red);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--red-bright);
+}
+
+/* ==========================================================================
+   FLOATING HUD NAVIGATION & PROGRESS BAR
+   ========================================================================== */
+.progress-bar-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.05);
+  z-index: 1000;
+}
+
+.progress-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--red), var(--red-bright));
+  transform-origin: 0%;
+}
+
+/* ── Static centering shell — NEVER animated by Framer Motion.
+   All FM transforms (entry slide, whileHover scale) live on the
+   inner motion.nav so they never touch the translateX(-50%) here. ── */
+.hud-nav-shell {
+  position: fixed;
+  top: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 999;
+}
+
+/* ── The pill itself ── */
+.hud-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(12, 12, 12, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 7px 16px;
+  border-radius: 50px;
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.75),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  /* transform-origin center so whileHover scale grows from the middle */
+  transform-origin: center;
+  cursor: default;
+}
+
+/* ── Logo mark ── */
+.hud-logo {
+  font-family: var(--font-display);
+  font-size: 15px;
+  color: var(--red-bright);
+  letter-spacing: 1px;
+  padding: 0 10px 0 2px;
+  font-weight: 700;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  margin-right: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Each nav link is a relative container so the bubble (absolute) clips to it ── */
+.hud-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 14px;
+  border-radius: 30px;
+  cursor: pointer;
+  text-decoration: none;
+  /* No background here — the bubble provides it */
+}
+
+/* ── The sliding bubble background (Framer Motion layoutId="hud-bubble") ── */
+.hud-bubble {
+  position: absolute;
+  inset: 0;
+  border-radius: 30px;
+  background: rgba(147, 20, 20, 0.42);
+  border: 1px solid rgba(229, 9, 20, 0.5);
+  box-shadow: 0 0 18px rgba(229, 9, 20, 0.2);
+  /* z-index 0 — text sits above */
+  z-index: 0;
+}
+
+/* ── Link text always above the bubble ── */
+.hud-link-text {
+  position: relative;
+  z-index: 1;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11.5px;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  white-space: nowrap;
+  transition: color 0.2s ease;
+}
+
+/* Active or hovered link text turns full white */
+.hud-link.is-active .hud-link-text,
+.hud-link:hover      .hud-link-text {
+  color: #fff;
+}
+
+
+/* ==========================================================================
+   SLIDE / FRAME SCALING CONTAINER
+   Matches 1920x1080 & custom Figma frame heights dynamically
+   ========================================================================== */
+.slide-frame {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  background: var(--bg-dark);
+}
+
+.stage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1920px;
+  transform-origin: 0 0;
+  overflow: hidden;
+}
+
+.stage-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: auto;
+}
+
+/* ==========================================================================
+   HERO SECTION (HOME)
+   ========================================================================== */
+#hero {
+  aspect-ratio: 16 / 9;
+}
+#hero .stage {
+  height: 1080px;
+}
+
+.hero-base-bg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1920px;
+  height: 1080px;
+  object-fit: cover;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.hero-hand-group {
+  position: absolute;
+  left: 1137px;
+  top: -40px;
+  width: 783px;
+  height: 1120px;
+  pointer-events: none;
+  z-index: 10;
+  /* CRITICAL: Starts off-screen left by 1950px in CSS so there is ZERO initial glitch or flash before hydration */
+  transform: translate3d(-1950px, 0, 0);
+  will-change: transform;
+}
+
+.hero-hand-right-underlay {
+  position: absolute;
+  left: 550px;
+  top: 0;
+  width: 233px;
+  height: 1120px;
+  background: #0e0e0e;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.hero-hand-img {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 783px;
+  height: 1080px;
+  object-fit: cover;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.hero-black-curtain {
+  position: absolute;
+  left: 780px;
+  top: 0;
+  width: 3200px;
+  height: 1120px;
+  background: #0e0e0e;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.hero-skip-btn {
+  position: absolute;
+  top: 28px;
+  right: 36px;
+  z-index: 100;
+  background: rgba(14, 14, 14, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.7);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 2px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: all 0.25s ease;
+}
+
+.hero-skip-btn:hover {
+  color: #fff;
+  border-color: var(--red-bright);
+  background: rgba(147, 20, 20, 0.4);
+}
+
+
+/* ==========================================================================
+   ABOUT SECTION
+   ========================================================================== */
+#about {
+  aspect-ratio: 16 / 9;
+  background: var(--bg-dark);
+}
+#about .stage {
+  height: 1080px;
+  background: transparent;
+}
+
+.about-rolling-star {
+  position: absolute;
+  left: 850px;
+  top: 80px;
+  width: 120px;
+  height: 120px;
+  pointer-events: none;
+  z-index: 10;
+  transform-origin: center center;
+  will-change: transform;
+}
+
+/* Star overlay in the Posters section — positioned precisely below the hanging line.
+   Hanging line center: x=915, star center: y=273.
+   120×120px container centered at (915, 273) -> left: 855px, top: 213px. */
+.posters-rolling-star {
+  position: absolute;
+  left: 855px;   /* center at x=915 */
+  top: 213px;    /* center at y=273 */
+  width: 120px;
+  height: 120px;
+  pointer-events: none;
+  z-index: 10;
+  transform-origin: center center;
+  will-change: transform;
+}
+
+.about-ink-canvas {
+  position: absolute;
+  left: 180px;
+  top: 300px;
+  width: 700px;
+  height: 710px;
+  pointer-events: none;
+  z-index: 5;
+  will-change: contents;
+}
+
+/* Screen reader text for SEO & Accessibility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ==========================================================================
+   POSTERS SHOWCASE SECTION
+   ========================================================================== */
+#posters {
+  aspect-ratio: 1920 / 2160;
+  background: var(--bg-dark);
+  margin-top: -2px;
+  position: relative;
+  z-index: 2;
+}
+#posters .stage {
+  height: 2160px;
+}
+
+.poster-hotspot {
+  /* Position is now handled by .poster-pendulum-outer which receives the
+     coordinate class (e.g. hotspot-top-sinners). The hotspot itself just
+     fills the rotating inner container. */
+  width: 100%;
+  height: 100%;
+  position: relative;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  z-index: 10;
+  border-radius: 4px;
+  /* overflow: visible lets card edges peek during pendulum rotation */
+  overflow: visible;
+}
+
+.poster-hotspot:hover {
+  border-color: rgba(229, 9, 20, 0.85);
+  box-shadow: 0 0 25px rgba(229, 9, 20, 0.45);
+  /* scale(1.015) removed — pendulum rotation handles the hover motion */
+}
+
+.poster-hotspot .hover-tag {
+  position: absolute;
+  bottom: -32px;
+  left: 50%;
+  transform: translateX(-50%) translateY(10px);
+  background: rgba(14, 14, 14, 0.92);
+  border: 1px solid var(--red);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  opacity: 0;
+  pointer-events: none;
+  white-space: nowrap;
+  transition: all 0.25s ease;
+  z-index: 1; /* above .poster-card-visual (z-index: 0) */
+}
+
+.poster-hotspot:hover .hover-tag {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Coordinates corresponding to exact Figma poster positions */
+.hotspot-top-sinners { left: 381px; top: 393px; width: 297px; height: 396px; }
+.hotspot-top-concept { left: 821px; top: 392px; width: 296px; height: 395px; }
+.hotspot-top-cowboybebop { left: 1244px; top: 391px; width: 297px; height: 397px; }
+.hotspot-001 { left: 381px; top: 951px; width: 298px; height: 397px; }
+.hotspot-002 { left: 821px; top: 950px; width: 303px; height: 404px; }
+.hotspot-003 { left: 1242px; top: 950px; width: 301px; height: 401px; }
+.hotspot-004 { left: 380px; top: 1504px; width: 297px; height: 396px; }
+.hotspot-005 { left: 824px; top: 1505px; width: 296px; height: 394px; }
+.hotspot-006 { left: 1247px; top: 1504px; width: 297px; height: 395px; }
+
+.poster-hotspot.is-detached {
+  border-color: transparent !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.poster-hotspot.is-animating {
+  pointer-events: none;
+}
+
+.poster-hotspot.is-settling {
+  pointer-events: none !important;
+  transform: none !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+/* ==========================================================================
+   PENDULUM HOVER WRAPPER
+   .poster-pendulum-outer  — the absolute-positioned container at each
+                             poster's grid coordinates (gets the hotspot
+                             className e.g. hotspot-top-sinners applied to it)
+   .poster-pendulum-inner  — the element that physically rotates;
+                             transform-origin: 50% 0% = top-tape anchor
+   ========================================================================== */
+.poster-pendulum-outer {
+  position: absolute;
+  cursor: pointer;
+  z-index: 10;
+}
+
+.poster-pendulum-inner {
+  width: 100%;
+  height: 100%;
+  /* The rotating element. transform-origin at 50% 0% pins the top edge
+     (where the tape is) as the fixed anchor point. The bottom swings. */
+  transform-origin: 50% 0%;
+  will-change: transform;
+  /* No transition here — rotation is driven frame-by-frame via RAF */
+}
+
+/* The actual Polaroid visual (frame + tape + shadow from baked stage image).
+   Uses background-image clipping to extract just this card's region from
+   the full posters-slice.jpg. background-position is set inline per card. */
+.poster-card-visual {
+  position: absolute;
+  inset: 0;
+  background-image: url('/images/posters-slice.jpg');
+  background-size: 1920px 2160px;
+  background-repeat: no-repeat;
+  /* background-position set inline: -cardX px -cardY px */
+  pointer-events: none;
+  border-radius: 2px;
+  z-index: 0;
+}
+
+/* ==========================================================================
+   PHYSICAL POSTER DETACH & ANIMATION LAYER
+   ========================================================================== */
+.poster-flying-clone {
+  position: fixed;
+  pointer-events: none;
+  z-index: 1900;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 35px 85px rgba(0, 0, 0, 0.92), 0 0 40px rgba(229, 9, 20, 0.25);
+  transform-style: preserve-3d;
+  will-change: transform;
+  outline: none;
+  border: none;
+  background: #080808;
+}
+
+.poster-flying-clone img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: auto;
+  transform: scale(1.006);
+}
+
+.poster-recessed-slot {
+  position: absolute;
+  inset: 0;
+  background: #080808;
+  border-radius: 4px;
+  box-shadow: inset 0 4px 30px rgba(0, 0, 0, 0.98);
+  pointer-events: none;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: none !important;
+}
+
+.poster-recessed-slot::before {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border: 1px dashed rgba(255, 255, 255, 0.04);
+  border-radius: 2px;
+}
+
+.poster-recessed-slot .recessed-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 2.5px;
+  color: rgba(255, 255, 255, 0.12);
+  text-transform: uppercase;
+}
+
+/* Blend Modes */
+.blend-darken { mix-blend-mode: darken; }
+.blend-multiply { mix-blend-mode: multiply; }
+.blend-hard-light { mix-blend-mode: hard-light; }
+.blend-screen { mix-blend-mode: screen; }
+
+.sketch-handwriting-overlay {
+  position: absolute;
+  pointer-events: none;
+  display: block;
+  z-index: 5;
+}
+
+/* ==========================================================================
+   DEAD SIGNAL CASE STUDY SECTION
+   ========================================================================== */
+.case-study-chapter {
+  position: relative;
+  width: 100%;
+  background: #000;
+  overflow: hidden;
+}
+
+.cs-frame {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+
+.cs-frame-1365 { aspect-ratio: 1920 / 1365; }
+.cs-frame-1365 .stage { height: 1365px; }
+
+.cs-frame-1080 { aspect-ratio: 1920 / 1080; }
+.cs-frame-1080 .stage { height: 1080px; }
+
+.cs-frame-2730 { aspect-ratio: 1920 / 2730; }
+.cs-frame-2730 .stage { height: 2730px; }
+
+.cs-frame-15019 { aspect-ratio: 1920 / 15019; }
+.cs-frame-15019 .stage { height: 15019px; }
+
+/* ==========================================================================
+   SKETCHBOOK / ORIGINAL ARTWORKS SECTION
+   ========================================================================== */
+.sketchbook-section {
+  position: relative;
+  width: 100%;
+  background: #111;
+  overflow: hidden;
+}
+
+.sketchbook-full-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1920 / 6398;
+  overflow: hidden;
+  background: #0c0c0c;
+}
+
+.sketchbook-full-frame .stage {
+  height: 6398px;
+}
+
+/* ==========================================================================
+   LIGHTBOX MODAL COMPONENT
+   ========================================================================== */
+.lightbox-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(0, 0, 0, 0.92);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+
+.lightbox-content {
+  position: relative;
+  max-width: 90vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.lightbox-img {
+  max-width: 100%;
+  max-height: 84vh;
+  object-fit: contain;
+  border-radius: 4px;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.95), 0 0 50px rgba(229, 9, 20, 0.25);
+  border: none;
+  outline: none;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: auto;
+}
+
+.lightbox-caption {
+  margin-top: 14px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--gold-muted);
+  letter-spacing: 1px;
+}
+
+.lightbox-close {
+  position: absolute;
+  top: -45px;
+  right: 0;
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 32px;
+  cursor: pointer;
+  padding: 8px;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.lightbox-close:hover {
+  color: var(--red-bright);
+}
+
+/* ==========================================================================
+   FOOTER & BACK-TO-TOP
+   ========================================================================== */
+.site-footer {
+  background: #060606;
+  padding: 60px 40px 40px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: center;
+}
+
+.footer-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.footer-logo {
+  font-family: var(--font-display);
+  font-size: 36px;
+  color: var(--red-bright);
+  letter-spacing: 2px;
+}
+
+.footer-quote {
+  font-family: var(--font-script);
+  font-size: 26px;
+  color: var(--gold-muted);
+}
+
+.footer-links {
+  display: flex;
+  gap: 24px;
+  margin-top: 10px;
+}
+
+.footer-links a {
+  color: rgba(255, 255, 255, 0.7);
+  text-decoration: none;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  transition: color 0.2s;
+}
+
+.footer-links a:hover {
+  color: var(--red-bright);
+}
+
+.footer-copy {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #555;
+  margin-top: 20px;
+}
+
+.back-to-top {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(20, 20, 20, 0.85);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 990;
+  transition: background 0.3s var(--ease-out-expo), transform 0.3s var(--ease-out-expo);
+}
+
+.back-to-top:hover {
+  background: var(--red);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(229, 9, 20, 0.4);
+}
+
+/* ==========================================================================
+   MOBILE & RESPONSIVE TWEAKS
+   ========================================================================== */
+@media (max-width: 768px) {
+  .hud-nav {
+    top: 12px;
+    padding: 4px 10px;
+    gap: 4px;
+  }
+  .hud-logo {
+    display: none;
+  }
+  .hud-nav a {
+    font-size: 9px;
+    padding: 5px 8px;
+    letter-spacing: 0.8px;
+  }
+}
+
+/* ==========================================================================
+   CINEMATIC ENTRANCE ANIMATION (HAND DRAG REVEAL)
+   ========================================================================== */
+.cinematic-intro-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 99999;
+  overflow: hidden;
+  pointer-events: auto;
+  user-select: none;
+  background: transparent;
+}
+
+.intro-drag-group {
+  position: absolute;
+  top: 0;
+  left: 1345px;
+  width: 575px;
+  height: 1080px;
+  will-change: transform;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.intro-hand-cutout-img {
+  width: 575px;
+  height: 1080px;
+  object-fit: contain;
+  display: block;
+  user-select: none;
+  pointer-events: none;
+  filter: drop-shadow(-15px 0 25px rgba(0, 0, 0, 0.7));
+}
+
+.intro-trailing-curtain {
+  position: absolute;
+  top: 0;
+  left: 570px;
+  width: 2500px;
+  height: 1080px;
+  background: var(--bg-pitch);
+  pointer-events: none;
+}
+
+.intro-screen-fill {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--bg-pitch);
+  pointer-events: none;
+  z-index: 10;
+}
+
+
+
+
+.intro-skip-btn {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.75);
+  background: rgba(14, 14, 14, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  pointer-events: auto;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: all 0.25s ease;
+}
+
+.intro-skip-btn:hover {
+  background: var(--red);
+  color: #fff;
+  border-color: var(--red-bright);
+  box-shadow: 0 4px 15px rgba(229, 9, 20, 0.35);
+  transform: translateY(-2px);
+}
+
+
+
+
