@@ -53,6 +53,7 @@ export default function Stage({
       style={{
         position: 'relative',
         width: '100%',
+        maxWidth: '100vw',
         aspectRatio: `${baseWidth} / ${baseHeight}`,
         overflow: 'hidden',
         ...style,

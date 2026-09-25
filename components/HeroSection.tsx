@@ -150,19 +150,36 @@ export default function HeroSection() {
           <div className="hero-black-curtain" />
         </div>
 
-        {/* Subtle Skip Button */}
-        {!isIntroComplete && (
-          <button
-            ref={skipBtnRef}
-            type="button"
-            className="hero-skip-btn"
-            onClick={handleSkip}
-            aria-label="Skip Intro Animation"
-          >
-            SKIP [ESC]
-          </button>
-        )}
       </Stage>
+
+      {/* Subtle Skip Button (Positioned at section level so it remains full-size and touch-friendly on mobile) */}
+      {!isIntroComplete && (
+        <button
+          ref={skipBtnRef}
+          type="button"
+          className="hero-skip-btn"
+          onClick={handleSkip}
+          aria-label="Skip Intro Animation"
+        >
+          <span className="hero-skip-desktop">SKIP [ESC]</span>
+          <span className="hero-skip-mobile">SKIP</span>
+        </button>
+      )}
+
+      {/* Mobile Hero Tagline & Scroll Cue (Appears cleanly below stage on mobile viewports) */}
+      <div className="hero-mobile-footer" aria-hidden="true">
+        <div className="hero-mobile-tagline">
+          <span className="hero-mobile-artist">KARUN PANDEY</span>
+          <span className="hero-mobile-dot">•</span>
+          <span className="hero-mobile-sub">GRAPHIC DESIGN & ART</span>
+        </div>
+        <div className="hero-mobile-scroll-cue">
+          <span>EXPLORE</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </div>
+      </div>
     </section>
   );
 }

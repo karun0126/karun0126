@@ -55,8 +55,11 @@ export default function AboutSection() {
 
       ctx.clearRect(0, 0, w, h);
 
-      // If motion reduced or scrolled to full view (98%+), show exact sharp typography
-      if (shouldReduceMotion || prog >= 0.98) {
+      // If motion reduced or scrolled to full view (95%+), show exact sharp typography
+      const isMobileDevice = typeof window !== 'undefined' && window.innerWidth < 768;
+      const fullThreshold = isMobileDevice ? 0.75 : 0.95;
+
+      if (shouldReduceMotion || prog >= fullThreshold) {
         if (inkImgRef.current) {
           ctx.drawImage(inkImgRef.current, 0, 0, w, h);
         }
@@ -225,6 +228,40 @@ export default function AboutSection() {
           </blockquote>
         </div>
       </Stage>
+
+      {/* Mobile Bio & Tools Companion Card (Clean typography and touch tags on mobile screens) */}
+      <div className="about-mobile-card" aria-hidden="true">
+        <div className="about-mobile-header">
+          <span className="about-mobile-section-tag">01 // ABOUT ME</span>
+          <span className="about-mobile-role">PAPER &amp; PIXELS</span>
+        </div>
+
+        <p className="about-mobile-bio">
+          I&apos;m <strong>Karun</strong> – a graphic designer and traditional artist. Creating since I was 14, I&apos;ve grown through both paper and pixels, blending traditional art with digital design. I craft visuals that tell stories, evoke emotions, and leave a lasting impression.
+        </p>
+
+        <div className="about-mobile-block">
+          <div className="about-mobile-block-title">PRIMARY TOOLS</div>
+          <div className="about-mobile-pills">
+            {['Photoshop', 'Illustrator', 'Figma', 'After Effects', 'Premiere Pro', 'DaVinci Resolve'].map((tool) => (
+              <span key={tool} className="about-mobile-pill">{tool}</span>
+            ))}
+          </div>
+        </div>
+
+        <div className="about-mobile-block">
+          <div className="about-mobile-block-title">SPECIALIZATIONS</div>
+          <div className="about-mobile-pills">
+            {['Brand Identity', 'Poster Design', 'Packaging', 'Visual Storytelling', 'Social Design'].map((item) => (
+              <span key={item} className="about-mobile-pill pill-accent">{item}</span>
+            ))}
+          </div>
+        </div>
+
+        <div className="about-mobile-quote">
+          &ldquo;Every image tells a story. Every story leaves a mark.&rdquo;
+        </div>
+      </div>
     </section>
   );
 }

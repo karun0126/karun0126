@@ -166,7 +166,7 @@ interface AnimatingPosterState {
   tilt: number;
 }
 
-const POSTERS: PosterItem[] = [
+export const POSTERS: PosterItem[] = [
   {
     id: 'sinners',
     className: 'hotspot-top-sinners',
@@ -438,6 +438,39 @@ export default function PostersSection({
           );
         })}
       </Stage>
+
+      {/* Mobile Poster Quick Selector Strip (Visible only on mobile devices) */}
+      <div className="posters-mobile-selector" aria-label="Mobile Poster Selector">
+        <div className="posters-mobile-selector-header">
+          <span className="posters-mobile-selector-title">TAP ANY POSTER TO INSPECT [01–09]</span>
+          <span className="posters-mobile-selector-swipe-hint">SWIPE ➔</span>
+        </div>
+        <div className="posters-mobile-strip">
+          {POSTERS.map((poster, idx) => (
+            <button
+              key={`mobile-poster-${poster.id}`}
+              type="button"
+              className="posters-mobile-card-btn"
+              onClick={() => onSelectPoster(poster.highres, poster.title, poster.id)}
+              aria-label={`Inspect ${poster.title}`}
+            >
+              <div className="posters-mobile-card-img-wrap">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={poster.highres}
+                  alt={poster.title}
+                  loading="lazy"
+                  className="posters-mobile-card-thumb"
+                />
+                <span className="posters-mobile-card-badge">0{idx + 1}</span>
+              </div>
+              <span className="posters-mobile-card-label">
+                {poster.title.replace(/^0\d\s+—\s+/, '')}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Detached Flying Poster Portal Layer */}
       {mounted &&

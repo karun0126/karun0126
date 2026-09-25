@@ -6,7 +6,7 @@ import HudNav from '@/components/HudNav';
 import BackToTop from '@/components/BackToTop';
 import HeroSection from '@/components/HeroSection';
 import AboutSection from '@/components/AboutSection';
-import PostersSection from '@/components/PostersSection';
+import PostersSection, { POSTERS } from '@/components/PostersSection';
 import CaseStudySection from '@/components/CaseStudySection';
 import SketchbookSection from '@/components/SketchbookSection';
 import LightboxModal from '@/components/LightboxModal';
@@ -41,6 +41,32 @@ export default function Home() {
     }));
   };
 
+  const currentPosterIndex = POSTERS.findIndex((p) => p.id === lightbox.posterId);
+
+  const handleNextPoster = () => {
+    if (currentPosterIndex === -1) return;
+    const nextIdx = (currentPosterIndex + 1) % POSTERS.length;
+    const nextPoster = POSTERS[nextIdx];
+    setLightbox({
+      isOpen: true,
+      imgSrc: nextPoster.highres,
+      caption: nextPoster.title,
+      posterId: nextPoster.id,
+    });
+  };
+
+  const handlePrevPoster = () => {
+    if (currentPosterIndex === -1) return;
+    const prevIdx = (currentPosterIndex - 1 + POSTERS.length) % POSTERS.length;
+    const prevPoster = POSTERS[prevIdx];
+    setLightbox({
+      isOpen: true,
+      imgSrc: prevPoster.highres,
+      caption: prevPoster.title,
+      posterId: prevPoster.id,
+    });
+  };
+
   return (
     <>
       {/* Top Reading Progress Bar */}
@@ -73,11 +99,16 @@ export default function Home() {
         <SketchbookSection />
       </main>
 
-      {/* Artwork Inspector Lightbox Modal */}
+      {/* Artwork Inspector Lightbox Modal with Mobile Touch & Navigation */}
       <LightboxModal
         isOpen={lightbox.isOpen}
         imgSrc={lightbox.imgSrc}
         caption={lightbox.caption}
+        posterId={lightbox.posterId}
+        currentIndex={currentPosterIndex}
+        totalCount={POSTERS.length}
+        onNext={handleNextPoster}
+        onPrev={handlePrevPoster}
         onClose={handleCloseLightbox}
       />
 
