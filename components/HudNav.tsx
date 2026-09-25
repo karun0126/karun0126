@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 
 const NAV_ITEMS = [
@@ -14,26 +14,119 @@ const NAV_ITEMS = [
 export default function HudNav() {
   const [activeId,  setActiveId]  = useState<string>('hero');
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const isManualScrollRef = useRef(false);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  /* Active section detection via IntersectionObserver */
+  /* Robust active section detection via viewport focal line */
   useEffect(() => {
-    const observers: IntersectionObserver[] = [];
-    NAV_ITEMS.forEach(({ id }) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      const obs = new IntersectionObserver(
-        ([entry]) => { if (entry.isIntersecting) setActiveId(id); },
-        { threshold: 0.3 }
-      );
-      obs.observe(el);
-      observers.push(obs);
-    });
-    return () => observers.forEach((o) => o.disconnect());
+    let ticking = false;
+
+    const updateActiveSection = () => {
+      // 1. If at/near top of page -> Hero
+      if (window.scrollY < 100) {
+        setActiveId('hero');
+        return;
+      }
+
+      // 2. If near the bottom of the page -> last section (Sketchbook)
+      const windowHeight = window.innerHeight;
+      const scrollPosition = window.scrollY + windowHeight;
+      const docHeight = document.documentElement.scrollHeight;
+      if (docHeight - scrollPosition < 80) {
+        setActiveId(NAV_ITEMS[NAV_ITEMS.length - 1].id);
+        return;
+      }
+
+      // 3. Focal line: 35% from the top of the viewport
+      // Matches the user's natural viewing area
+      const focalLine = windowHeight * 0.35;
+
+      // Find which section currently encompasses the focal line
+      for (const item of NAV_ITEMS) {
+        const el = document.getElementById(item.id);
+        if (!el) continue;
+        const rect = el.getBoundingClientRect();
+        if (rect.top <= focalLine && rect.bottom > focalLine) {
+          setActiveId(item.id);
+          return;
+        }
+      }
+
+      // 4. Fallback in case of rapid scrolling: pick section closest to focal line
+      let closestId = NAV_ITEMS[0].id;
+      let minDistance = Infinity;
+      for (const item of NAV_ITEMS) {
+        const el = document.getElementById(item.id);
+        if (!el) continue;
+        const rect = el.getBoundingClientRect();
+        const dist = Math.abs(rect.top - focalLine);
+        if (dist < minDistance) {
+          minDistance = dist;
+          closestId = item.id;
+        }
+      }
+      setActiveId(closestId);
+    };
+
+    const handleScroll = () => {
+      if (isManualScrollRef.current) return;
+
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          updateActiveSection();
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
+    // Run on mount to detect active section immediately
+    updateActiveSection();
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('resize', handleScroll, { passive: true });
+
+    // Cancel manual scroll lock if user wheels or touches manually
+    const handleUserInteraction = () => {
+      if (isManualScrollRef.current) {
+        isManualScrollRef.current = false;
+        if (scrollTimeoutRef.current) {
+          clearTimeout(scrollTimeoutRef.current);
+          scrollTimeoutRef.current = null;
+        }
+      }
+    };
+
+    window.addEventListener('wheel', handleUserInteraction, { passive: true });
+    window.addEventListener('touchmove', handleUserInteraction, { passive: true });
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', handleScroll);
+      window.removeEventListener('wheel', handleUserInteraction);
+      window.removeEventListener('touchmove', handleUserInteraction);
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
   }, []);
 
   const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
     e.preventDefault();
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+    setActiveId(id);
+    isManualScrollRef.current = true;
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+
+    const el = document.getElementById(id);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    scrollTimeoutRef.current = setTimeout(() => {
+      isManualScrollRef.current = false;
+    }, 850);
   };
 
   /* Bubble follows hovered item, falls back to active */
