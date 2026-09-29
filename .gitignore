@@ -38,3 +38,5 @@ next-env.d.ts
 /*.jpg
 /*.zip
 figma-node-*.json
+RELIEFNET*
+word/

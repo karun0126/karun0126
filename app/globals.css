@@ -108,87 +108,294 @@ body {
 
 .hud-nav-shell {
   position: fixed;
-  top: 22px;
+  top: 18px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 999;
+  pointer-events: none;
+  overflow: visible;
 }
 
-/* ── The pill itself ── */
-.hud-nav {
+/* ── The Mounting Rail Container (Preserved dark rounded navbar structure) ── */
+.hud-nav.hud-mounting-rail {
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: 2px;
-  background: rgba(12, 12, 12, 0.88);
+  flex-direction: column;
+  justify-content: center;
+  width: 100%;
+  height: 38px;
+  padding: 0 20px;
+  background: rgba(12, 12, 12, 0.92);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 7px 16px;
-  border-radius: 50px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 40px;
   box-shadow:
-    0 12px 40px rgba(0, 0, 0, 0.75),
+    0 12px 36px rgba(0, 0, 0, 0.8),
     0 0 0 1px rgba(255, 255, 255, 0.04) inset;
-  /* transform-origin center so whileHover scale grows from the middle */
-  transform-origin: center;
+  z-index: 2;
+  pointer-events: auto;
   cursor: default;
 }
 
-/* ── Logo mark ── */
-.hud-logo {
-  font-family: var(--font-display);
-  font-size: 15px;
-  color: var(--red-bright);
-  letter-spacing: 1px;
-  padding: 0 10px 0 2px;
-  font-weight: 700;
-  border-right: 1px solid rgba(255, 255, 255, 0.1);
-  margin-right: 6px;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-/* ── Each nav link is a relative container so the bubble (absolute) clips to it ── */
-.hud-link {
+.hud-rail-top {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 7px 14px;
-  border-radius: 30px;
-  cursor: pointer;
-  text-decoration: none;
-  /* No background here — the bubble provides it */
+  width: 100%;
+  height: 100%;
 }
 
-/* ── The sliding bubble background (Framer Motion layoutId="hud-bubble") ── */
-.hud-bubble {
+/* ── Centered Pure KRXN Typography (No capsule, clean minimal brand link to Hero) ── */
+.hud-rail-center-logo {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--red-bright);
+  letter-spacing: 2.8px;
+  text-decoration: none;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 2px 8px;
+  line-height: 1;
+  transition: all 0.22s ease;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+}
+
+.hud-rail-center-logo:hover {
+  color: #ffffff;
+  text-shadow: 0 0 12px rgba(229, 9, 20, 0.85);
+  transform: scale(1.06);
+}
+
+.hud-rail-center-logo:active {
+  transform: scale(0.96);
+}
+
+/* ── Mounting Grommets / Eyelets along the bottom rail edge ── */
+.hud-rail-anchor-track {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 0;
+  pointer-events: none;
+}
+
+.hud-rail-anchor {
+  position: absolute;
+  top: 0;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.hud-anchor-grommet {
+  width: 8.5px;
+  height: 6.5px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #444444 0%, #151515 100%);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+
+.hud-anchor-hole {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #080808;
+  border: 1px solid #111;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.9);
+}
+
+.hud-rail-anchor.is-active .hud-anchor-grommet {
+  border-color: rgba(229, 9, 20, 0.85);
+  box-shadow:
+    0 0 10px rgba(229, 9, 20, 0.7),
+    0 2px 4px rgba(0, 0, 0, 0.85);
+}
+
+/* ── SVG Knotted Ropes Canvas ── */
+.hud-rope-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 4;
+}
+
+.hud-rope-group {
+  transition: filter 0.3s ease;
+}
+
+/* ── Suspended Navigation Capsules / Tags ── */
+.hud-capsules-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.hud-capsule {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5.5px 13px 6px 13px;
+  background: #121212;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 22px;
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.85),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  will-change: transform;
+  transform-origin: 0 0;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hud-capsule:focus-visible {
+  outline: 2px solid var(--red-bright);
+  outline-offset: 3px;
+}
+
+/* Physical Grommet Tab at Capsule Top Edge */
+.hud-capsule-grommet {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 7.5px;
+  height: 5.5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.hud-capsule-grommet-outer {
   position: absolute;
   inset: 0;
-  border-radius: 30px;
-  background: rgba(147, 20, 20, 0.42);
-  border: 1px solid rgba(229, 9, 20, 0.5);
-  box-shadow: 0 0 18px rgba(229, 9, 20, 0.2);
-  /* z-index 0 — text sits above */
-  z-index: 0;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #444444 0%, #1a1a1a 100%);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 }
 
-/* ── Link text always above the bubble ── */
-.hud-link-text {
+.hud-capsule-grommet-hole {
   position: relative;
-  z-index: 1;
-  color: rgba(255, 255, 255, 0.55);
-  font-size: 11.5px;
+  width: 2.8px;
+  height: 2.8px;
+  border-radius: 50%;
+  background: #080808;
+  border: 1px solid #111;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.9);
+}
+
+.hud-capsule-num {
   font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--red-bright);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.hud-capsule-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.72);
+  font-weight: 600;
+  letter-spacing: 1.1px;
   text-transform: uppercase;
-  letter-spacing: 1.2px;
-  white-space: nowrap;
   transition: color 0.2s ease;
 }
 
-/* Active or hovered link text turns full white */
-.hud-link.is-active .hud-link-text,
-.hud-link:hover      .hud-link-text {
-  color: #fff;
+/* Hover state: tactile reaction and highlight */
+.hud-capsule:hover .hud-capsule-title,
+.hud-capsule.is-hovered .hud-capsule-title {
+  color: #ffffff;
+}
+
+.hud-capsule:hover,
+.hud-capsule.is-hovered {
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.85),
+    0 0 16px rgba(229, 9, 20, 0.25),
+    0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+}
+
+/* ── Active Selected State: High contrast, 100% opaque bold badge with crisp white outline ── */
+.hud-capsule.is-active {
+  background: linear-gradient(135deg, #b00710 0%, #e50914 55%, #c20811 100%) !important;
+  border: 1.5px solid #ffffff !important;
+  box-shadow:
+    0 12px 34px rgba(0, 0, 0, 0.85),
+    0 0 22px rgba(229, 9, 20, 0.7),
+    0 0 0 1px rgba(255, 255, 255, 0.4) inset !important;
+}
+
+.hud-capsule.is-active .hud-capsule-num {
+  background: #ffffff !important;
+  color: #9c0a12 !important;
+  font-weight: 800 !important;
+  font-size: 9.5px !important;
+  padding: 1px 4.5px !important;
+  border-radius: 4px !important;
+  letter-spacing: 0.5px !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.hud-capsule.is-active .hud-capsule-title {
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  letter-spacing: 1.2px !important;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+}
+
+.hud-capsule.is-active .hud-capsule-active-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #ffffff !important;
+  box-shadow: 0 0 8px #ffffff, 0 0 14px rgba(255, 255, 255, 0.9) !important;
+}
+
+/* Tablet adjustments */
+@media (max-width: 1024px) and (min-width: 768px) {
+  .hud-capsule {
+    padding: 3px 8px 3.5px 8px;
+    gap: 4px;
+  }
+  .hud-capsule-title {
+    font-size: 8.5px;
+    letter-spacing: 0.6px;
+  }
+  .hud-capsule-num {
+    font-size: 8px;
+  }
 }
 
 
@@ -1071,6 +1278,39 @@ body {
     background: rgba(147, 20, 20, 0.35);
     border-color: rgba(229, 9, 20, 0.6);
     box-shadow: 0 0 20px rgba(229, 9, 20, 0.25);
+  }
+
+  /* Suspended Red Cord Graphic Accent in Mobile Drawer */
+  .hud-mobile-rope-hang {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 12px;
+    height: 24px;
+    margin-right: 12px;
+    flex-shrink: 0;
+  }
+
+  .hud-mobile-knot-pip {
+    width: 6px;
+    height: 4px;
+    border-radius: 50%;
+    background: #a31018;
+    border: 1px solid #ff545e;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  }
+
+  .hud-mobile-cord-line {
+    width: 2px;
+    height: 14px;
+    background: linear-gradient(180deg, #a31018 0%, #e50914 50%, #63070d 100%);
+    box-shadow: 0 0 4px rgba(229, 9, 20, 0.4);
+  }
+
+  .hud-mobile-link.is-active .hud-mobile-cord-line {
+    background: linear-gradient(180deg, #ff545e 0%, #e50914 100%);
+    box-shadow: 0 0 8px rgba(229, 9, 20, 0.7);
   }
 
   .hud-mobile-link-num {
