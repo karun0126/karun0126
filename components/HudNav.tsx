@@ -247,9 +247,15 @@ export default function HudNav() {
   // Shell container and layout state
   const containerRef = useRef<HTMLDivElement>(null);
   const railRef = useRef<HTMLDivElement>(null);
-  const [railWidth, setRailWidth] = useState<number>(640);
-  const [containerHeight, setContainerHeight] = useState<number>(145);
-  const [anchorCoords, setAnchorCoords] = useState<{ x: number; y: number }[]>([]);
+  const [railWidth, setRailWidth] = useState<number>(620);
+  const [containerHeight, setContainerHeight] = useState<number>(182);
+  const [anchorCoords, setAnchorCoords] = useState<{ x: number; y: number }[]>([
+    { x: 50, y: 46 },
+    { x: 180, y: 46 },
+    { x: 310, y: 46 },
+    { x: 440, y: 46 },
+    { x: 570, y: 46 },
+  ]);
 
   // DOM node references for 60fps direct updates without React re-render spikes
   const capsuleRefs = useRef<(HTMLAnchorElement | null)[]>([]);
@@ -266,12 +272,10 @@ export default function HudNav() {
     btm: SVGGElement | null;
   }[]>([]);
 
-  // Physics state ref (Verlet particles + springs + damping + sway)
+  // Physics state ref (particles + springs + damping)
   const itemsPhysicsRef = useRef<ItemPhysics[]>([]);
   const animFrameRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(performance.now());
-  const lastPointerPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const lastPointerTimeRef = useRef<number>(performance.now());
 
   /* ─────────────────────────────────────────────────────────────
      1. Robust Active Section Detection via Viewport Focal Line
@@ -282,14 +286,14 @@ export default function HudNav() {
     const updateActiveSectionAndMode = () => {
       const scrollY = window.scrollY;
 
-      // Mode detection with hysteresis
-      // Trigger drop down when approaching Section 2 (About)
+      // Mode detection with clean hysteresis
+      // Trigger drop down when scrolling away from Hero toward About
       const aboutEl = document.getElementById('about');
-      let dropThreshold = 280;
+      let dropThreshold = 260;
       if (aboutEl) {
-        dropThreshold = Math.min(aboutEl.offsetTop - window.innerHeight * 0.72, window.innerHeight * 0.38);
+        dropThreshold = Math.min(aboutEl.offsetTop - window.innerHeight * 0.68, window.innerHeight * 0.35);
       }
-      dropThreshold = Math.max(180, dropThreshold);
+      dropThreshold = Math.max(160, dropThreshold);
 
       if (scrollY > dropThreshold) {
         if (!isHangingModeRef.current) {
@@ -299,7 +303,7 @@ export default function HudNav() {
           dropAnimRef.current.retractStartTime = 0;
           setIsHangingMode(true);
         }
-      } else if (scrollY < dropThreshold - 75) {
+      } else if (scrollY < dropThreshold - 60) {
         if (isHangingModeRef.current) {
           isHangingModeRef.current = false;
           dropAnimRef.current.isHanging = false;
@@ -422,9 +426,9 @@ export default function HudNav() {
     const isTablet = windowWidth < 1024 && windowWidth >= 768;
 
     // Symmetrical, perfectly balanced anchor spacing architecture
-    const spacing = isTablet ? 108 : 132;
-    const margin = isTablet ? 40 : 61;
-    const computedRailW = (NAV_ITEMS.length - 1) * spacing + 2 * margin; // 4 * 132 + 122 = 650px
+    const spacing = isTablet ? 105 : 130;
+    const margin = isTablet ? 45 : 50;
+    const computedRailW = (NAV_ITEMS.length - 1) * spacing + 2 * margin; // 4 * 130 + 100 = 620px
     setRailWidth(computedRailW);
 
     const anchorY = 46; // Bottom mounting rail edge (rail height is 46px)
@@ -442,7 +446,7 @@ export default function HudNav() {
       const capW = widths[i];
       const capH = isTablet ? 30 : 36;
       // Anchor grommet position: EXACTLY margin + i * spacing
-      // Symmetrically spaced: Grommet 2 (02 POSTERS) is at the exact center (325px) right below KRXN!
+      // Symmetrically spaced: Grommet 2 (02 POSTERS) is at the exact center (310px) right below KRXN!
       const anchorX = margin + i * spacing;
 
       newAnchors.push({ x: anchorX, y: anchorY });
@@ -470,9 +474,9 @@ export default function HudNav() {
         seg2,
         angle: 0,
         angularVelocity: 0,
-        swayFreq: 0.6 + i * 0.1,
-        swayPhase: i * 1.1,
-        swayAmp: 0.05, // Subtle organic micro-movement, never distracting
+        swayFreq: 0,
+        swayPhase: 0,
+        swayAmp: 0,
         capsuleWidth: capW,
         capsuleHeight: capH,
       });
@@ -491,8 +495,12 @@ export default function HudNav() {
     // Initial mode detection
     const scrollY = typeof window !== 'undefined' ? window.scrollY : 0;
     const aboutEl = typeof document !== 'undefined' ? document.getElementById('about') : null;
-    const dropThreshold = aboutEl ? Math.min(aboutEl.offsetTop - (window.innerHeight || 800) * 0.72, (window.innerHeight || 800) * 0.38) : 280;
-    const initialHanging = scrollY > Math.max(180, dropThreshold);
+    let dropThreshold = 260;
+    if (aboutEl) {
+      dropThreshold = Math.min(aboutEl.offsetTop - (window.innerHeight || 800) * 0.68, (window.innerHeight || 800) * 0.35);
+    }
+    dropThreshold = Math.max(160, dropThreshold);
+    const initialHanging = scrollY > dropThreshold;
     isHangingModeRef.current = initialHanging;
     dropAnimRef.current.isHanging = initialHanging;
     setIsHangingMode(initialHanging);
@@ -514,45 +522,32 @@ export default function HudNav() {
   }, [initializePhysics]);
 
   /* ─────────────────────────────────────────────────────────────
-     3. Performant 60FPS Verlet Rope Physics Simulation Loop
+     3. Performant 60FPS Physical Tension & Drop Bounce Loop
      ───────────────────────────────────────────────────────────── */
   useEffect(() => {
-    const prefersReducedMotion =
-      typeof window !== 'undefined' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
     const tick = (now: number) => {
-      const elapsedMs = now - lastTimeRef.current;
-      lastTimeRef.current = now;
-      const dt = Math.min(32, Math.max(8, elapsedMs)) / 16.666;
-      const timeSec = now * 0.001;
-
-      const damping = 0.90; // Higher damping to settle quickly
-      const gravity = 0.48 * dt;
-      const springRot = 0.16; // Restores upright orientation firmly
-      const dampingRot = 0.82; // Stops oscillation rapidly
-
       itemsPhysicsRef.current.forEach((item, i) => {
-        // Drop progress with elastic tension bounce
+        // Drop progress with physical tension bounce
         let progress = 1.0;
         if (dropAnimRef.current.isHanging) {
           if (dropAnimRef.current.dropStartTime > 0) {
-            const delay = [0.08, 0.04, 0.0, 0.04, 0.08][i];
+            // Elegant micro-wave stagger from center outward: 0ms (center), 16ms, 32ms (outer)
+            const delay = Math.abs(i - 2) * 0.016;
             const t = (now - dropAnimRef.current.dropStartTime) / 1000 - delay;
-            if (t < 0) {
+            if (t <= 0) {
               progress = 0;
-            } else if (t <= 0.32) {
-              const norm = t / 0.32;
-              progress = norm * norm;
+            } else if (t >= 0.72) {
+              progress = 1.0;
             } else {
-              const tau = t - 0.32;
-              if (tau > 0.92) {
-                progress = 1.0;
-              } else {
-                const decay = Math.exp(-5.2 * tau);
-                const bounce = Math.sin(16.0 * tau);
-                progress = 1.0 + 0.22 * decay * bounce;
-              }
+              // 2nd-order damped harmonic spring-mass unit step response:
+              // Natural frequency wn = 11.2 rad/s, damping ratio zeta = 0.64
+              // Stretches by 7% under tension, rebounds once softly to 0.985, and settles at 1.000
+              const wn = 11.2;
+              const zeta = 0.64;
+              const wd = wn * Math.sqrt(1 - zeta * zeta); // ~8.60 rad/s
+              const envelope = Math.exp(-zeta * wn * t);
+              const decayTerm = envelope * (Math.cos(wd * t) + (zeta / Math.sqrt(1 - zeta * zeta)) * Math.sin(wd * t));
+              progress = 1.0 - decayTerm;
             }
           } else {
             progress = 1.0;
@@ -560,8 +555,8 @@ export default function HudNav() {
         } else {
           if (dropAnimRef.current.retractStartTime > 0) {
             const t = (now - dropAnimRef.current.retractStartTime) / 1000;
-            if (t <= 0.28) {
-              progress = Math.max(0, 1 - Math.pow(t / 0.28, 2.2));
+            if (t <= 0.26) {
+              progress = Math.max(0, 1 - Math.pow(t / 0.26, 2.0));
             } else {
               progress = 0;
             }
@@ -573,57 +568,37 @@ export default function HudNav() {
         const def = NAV_ITEMS[i];
         const currentRestLen = item.restLength * progress;
 
-        // Fixed anchor
+        // Rock-solid vertical alignment (plumb straight from anchor grommets, NO continuous oscillation!)
         item.nodes[0].x = item.anchorX;
         item.nodes[0].y = item.anchorY;
 
-        // Nodes y position based on progress
+        item.nodes[1].x = item.anchorX;
         item.nodes[1].y = item.anchorY + currentRestLen * def.knot1Ratio;
+
+        item.nodes[2].x = item.anchorX;
         item.nodes[2].y = item.anchorY + currentRestLen * def.knot2Ratio;
+
+        item.nodes[3].x = item.anchorX;
         item.nodes[3].y = item.anchorY + currentRestLen;
-
-        // Subtle horizontal sway when extended
-        if (!prefersReducedMotion && progress > 0.4) {
-          const idleForceX = Math.sin(timeSec * item.swayFreq + item.swayPhase) * item.swayAmp;
-          const swayOffset = Math.sin(timeSec * item.swayFreq + item.swayPhase) * item.swayAmp * (item.restLength / 45);
-          item.nodes[3].x = Math.max(item.anchorX - 7, Math.min(item.anchorX + 7, item.anchorX + swayOffset));
-          item.nodes[2].x = Math.max(item.anchorX - 4.5, Math.min(item.anchorX + 4.5, item.anchorX + swayOffset * 0.65));
-          item.nodes[1].x = Math.max(item.anchorX - 2.5, Math.min(item.anchorX + 2.5, item.anchorX + swayOffset * 0.35));
-
-          // Capsule inertia & rotational spring
-          const ropeAngle = Math.atan2(item.nodes[3].x - item.nodes[0].x, item.nodes[3].y - item.nodes[0].y);
-          const targetAngle = ropeAngle * 0.4;
-          const torque = (targetAngle - item.angle) * springRot;
-          item.angularVelocity = (item.angularVelocity + torque) * dampingRot;
-          item.angle += item.angularVelocity;
-          item.angle = Math.max(-0.022, Math.min(0.022, item.angle));
-        } else {
-          item.nodes[1].x = item.anchorX;
-          item.nodes[2].x = item.anchorX;
-          item.nodes[3].x = item.anchorX;
-          item.angle = 0;
-        }
+        item.angle = 0;
 
         // GPU DOM update for Capsule Tag
         const capEl = capsuleRefs.current[i];
         if (capEl) {
           const capY = item.nodes[3].y;
-          const deg = (item.angle * 180) / Math.PI;
           const isVisible = progress > 0.05;
           capEl.style.opacity = isVisible ? Math.min(1, Math.max(0, progress * 3 - 0.15)).toFixed(3) : '0';
           capEl.style.pointerEvents = progress > 0.85 ? 'auto' : 'none';
-          capEl.style.transform = `translate3d(${item.nodes[3].x.toFixed(2)}px, ${capY.toFixed(2)}px, 0) rotate(${deg.toFixed(2)}deg) translate(-50%, 0)`;
+          capEl.style.transform = `translate3d(${item.nodes[3].x.toFixed(2)}px, ${capY.toFixed(2)}px, 0) rotate(0deg) translate(-50%, 0)`;
         }
 
-        // Smooth Rope SVG Curve Update
+        // Clean Vertical Straight Rope SVG line
         const p0 = item.nodes[0];
         const p1 = item.nodes[1];
         const p2 = item.nodes[2];
         const p3 = item.nodes[3];
 
-        const mid12x = (p1.x + p2.x) * 0.5;
-        const mid12y = (p1.y + p2.y) * 0.5;
-        const pathD = `M ${p0.x.toFixed(1)},${p0.y.toFixed(1)} Q ${p1.x.toFixed(1)},${p1.y.toFixed(1)} ${mid12x.toFixed(1)},${mid12y.toFixed(1)} Q ${p2.x.toFixed(1)},${p2.y.toFixed(1)} ${p3.x.toFixed(1)},${p3.y.toFixed(1)}`;
+        const pathD = `M ${p0.x.toFixed(1)},${p0.y.toFixed(1)} L ${p3.x.toFixed(1)},${p3.y.toFixed(1)}`;
 
         const ropeOpacity = progress > 0.05 ? Math.min(1, Math.max(0, progress * 3)).toFixed(3) : '0';
         const ropePaths = ropePathRefs.current[i];
@@ -646,27 +621,23 @@ export default function HudNav() {
           }
         }
 
-        // Tangent Orientations for Knots
+        // Tangent Orientations for Knots (aligned vertically at 0deg)
         const knotG = knotRefs.current[i];
         if (knotG) {
-          const angTop = (Math.atan2(p1.y - p0.y, p1.x - p0.x) - Math.PI / 2) * (180 / Math.PI);
           if (knotG.top) {
-            knotG.top.setAttribute('transform', `translate(${p0.x.toFixed(2)}, ${p0.y.toFixed(2)}) rotate(${angTop.toFixed(2)})`);
+            knotG.top.setAttribute('transform', `translate(${p0.x.toFixed(2)}, ${p0.y.toFixed(2)}) rotate(0)`);
             knotG.top.style.opacity = ropeOpacity;
           }
-          const ang1 = (Math.atan2(p2.y - p0.y, p2.x - p0.x) - Math.PI / 2) * (180 / Math.PI);
           if (knotG.knot1) {
-            knotG.knot1.setAttribute('transform', `translate(${p1.x.toFixed(2)}, ${p1.y.toFixed(2)}) rotate(${ang1.toFixed(2)})`);
+            knotG.knot1.setAttribute('transform', `translate(${p1.x.toFixed(2)}, ${p1.y.toFixed(2)}) rotate(0)`);
             knotG.knot1.style.opacity = ropeOpacity;
           }
-          const ang2 = (Math.atan2(p3.y - p1.y, p3.x - p1.x) - Math.PI / 2) * (180 / Math.PI);
           if (knotG.knot2) {
-            knotG.knot2.setAttribute('transform', `translate(${p2.x.toFixed(2)}, ${p2.y.toFixed(2)}) rotate(${ang2.toFixed(2)})`);
+            knotG.knot2.setAttribute('transform', `translate(${p2.x.toFixed(2)}, ${p2.y.toFixed(2)}) rotate(0)`);
             knotG.knot2.style.opacity = ropeOpacity;
           }
-          const angBtm = (Math.atan2(p3.y - p2.y, p3.x - p2.x) - Math.PI / 2) * (180 / Math.PI);
           if (knotG.btm) {
-            knotG.btm.setAttribute('transform', `translate(${p3.x.toFixed(2)}, ${p3.y.toFixed(2)}) rotate(${angBtm.toFixed(2)})`);
+            knotG.btm.setAttribute('transform', `translate(${p3.x.toFixed(2)}, ${p3.y.toFixed(2)}) rotate(0)`);
             knotG.btm.style.opacity = ropeOpacity;
           }
         }
@@ -682,75 +653,21 @@ export default function HudNav() {
   }, []);
 
   /* ─────────────────────────────────────────────────────────────
-     4. Interactive Disturbances: Pointer Swipe & Touch Physics
-     ───────────────────────────────────────────────────────────── */
-  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const localX = e.clientX - rect.left;
-    const localY = e.clientY - rect.top;
-
-    const now = performance.now();
-    const dt = Math.max(now - lastPointerTimeRef.current, 8);
-    const vx = ((localX - lastPointerPosRef.current.x) / dt) * 16.666;
-    const vy = ((localY - lastPointerPosRef.current.y) / dt) * 16.666;
-
-    lastPointerPosRef.current = { x: localX, y: localY };
-    lastPointerTimeRef.current = now;
-
-    // Apply gentle physical impulse to ropes/capsules near the pointer
-    itemsPhysicsRef.current.forEach((item) => {
-      const capCenter = {
-        x: item.nodes[3].x,
-        y: item.nodes[3].y + item.capsuleHeight / 2,
-      };
-      const dist = Math.hypot(localX - capCenter.x, localY - capCenter.y);
-
-      if (dist < 45) {
-        const falloff = Math.max(0, 1 - dist / 45);
-        const impulseX = Math.max(-2.2, Math.min(2.2, vx * 0.02 * falloff));
-        const impulseY = Math.max(-1.0, Math.min(1.0, vy * 0.01 * falloff));
-
-        item.nodes[3].x += impulseX;
-        item.nodes[3].y += impulseY;
-        item.nodes[2].x += impulseX * 0.35;
-        item.nodes[1].x += impulseX * 0.15;
-
-        item.angularVelocity += Math.max(-0.005, Math.min(0.005, vx * 0.0003 * falloff));
-      }
-    });
-  };
-
-  /* ─────────────────────────────────────────────────────────────
-     5. Hover Reaction: Subtle Stretch & Gentle Recoil
+     4. Interaction Handlers: Stable Hover & Click Navigation
      ───────────────────────────────────────────────────────────── */
   const handleCapsuleMouseEnter = (idx: number, id: string) => {
     setHoveredId(id);
-    const item = itemsPhysicsRef.current[idx];
-    if (!item) return;
-
-    const rotDir = idx % 2 === 0 ? 0.002 : -0.002;
-    item.angularVelocity += rotDir;
   };
 
-  const handleCapsuleMouseLeave = (idx: number) => {
+  const handleCapsuleMouseLeave = () => {
     setHoveredId(null);
-    const item = itemsPhysicsRef.current[idx];
-    if (!item) return;
-
-    item.angularVelocity += (idx % 2 === 0 ? -0.002 : 0.002);
   };
 
-  /* ─────────────────────────────────────────────────────────────
-     6. Click Reaction: Smooth Navigation Without Displacement
-     ───────────────────────────────────────────────────────────── */
   const handleCapsuleClick = (
     e: React.MouseEvent<HTMLAnchorElement>,
-    id: string,
-    idx: number
+    id: string
   ) => {
     e.preventDefault();
-    // Rock-solid click: zero physical displacement or jerk
     handleNavClick(e, id);
   };
 
@@ -777,15 +694,10 @@ export default function HudNav() {
   };
 
   /* ─────────────────────────────────────────────────────────────
-     7. Accessibility: Keyboard Focus Feedback
+     5. Accessibility: Keyboard Focus Feedback
      ───────────────────────────────────────────────────────────── */
-  const handleCapsuleFocus = (idx: number, id: string) => {
+  const handleCapsuleFocus = (id: string) => {
     setActiveId(id);
-    const item = itemsPhysicsRef.current[idx];
-    if (item) {
-      item.nodes[3].y -= 1.0;
-      item.angularVelocity += (idx % 2 === 0 ? 0.004 : -0.004);
-    }
   };
 
   const currentActiveItem = NAV_ITEMS.find((item) => item.id === activeId);
@@ -801,7 +713,6 @@ export default function HudNav() {
           height: isHangingMode ? `${containerHeight}px` : '46px',
           transition: 'height 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
         }}
-        onPointerMove={handlePointerMove}
       >
         {/* Main Mounting Rail Container */}
         <motion.nav
@@ -812,19 +723,20 @@ export default function HudNav() {
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
         >
-          {/* Animated Brand Logo: Left in Simple Mode, Centered in Hanging Mode */}
+          {/* Animated Brand Logo: Centered in Hanging Mode only */}
           <motion.a
             href="#hero"
             className="hud-rail-brand"
             onClick={(e) => handleNavClick(e, 'hero')}
             aria-label="KRXN — Return to Home section"
-            title="KRXN"
+            title="KRXN — Return to Home"
             animate={{
-              left: isHangingMode ? '50%' : '24px',
-              x: isHangingMode ? '-50%' : '0%',
+              opacity: isHangingMode ? 1 : 0,
+              scale: isHangingMode ? 1 : 0.85,
+              pointerEvents: isHangingMode ? 'auto' : 'none',
             }}
             transition={{
-              duration: 0.45,
+              duration: 0.35,
               ease: [0.16, 1, 0.3, 1],
             }}
           >
@@ -845,7 +757,6 @@ export default function HudNav() {
               ease: [0.16, 1, 0.3, 1],
             }}
           >
-            <span className="hud-simple-sep" />
             <div className="hud-simple-nav-links">
               {NAV_ITEMS.map((item) => {
                 const isActive = activeId === item.id;
@@ -1073,10 +984,10 @@ export default function HudNav() {
                   id={`hud-capsule-${item.id}`}
                   className={`hud-capsule ${isActive ? 'is-active' : ''} ${isHovered ? 'is-hovered' : ''}`}
                   aria-current={isActive ? 'page' : undefined}
-                  onClick={(e) => handleCapsuleClick(e, item.id, i)}
+                  onClick={(e) => handleCapsuleClick(e, item.id)}
                   onMouseEnter={() => handleCapsuleMouseEnter(i, item.id)}
-                  onMouseLeave={() => handleCapsuleMouseLeave(i)}
-                  onFocus={() => handleCapsuleFocus(i, item.id)}
+                  onMouseLeave={handleCapsuleMouseLeave}
+                  onFocus={() => handleCapsuleFocus(item.id)}
                 >
                   {/* Physical Attachment Eyelet Grommet at top center */}
                   <span className="hud-capsule-grommet">
