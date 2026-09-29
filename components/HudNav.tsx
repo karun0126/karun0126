@@ -229,6 +229,17 @@ export default function HudNav() {
   const [activeId, setActiveId] = useState<string>('hero');
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isHangingMode, setIsHangingMode] = useState<boolean>(false);
+  const isHangingModeRef = useRef<boolean>(false);
+  const dropAnimRef = useRef<{
+    isHanging: boolean;
+    dropStartTime: number;
+    retractStartTime: number;
+  }>({
+    isHanging: false,
+    dropStartTime: 0,
+    retractStartTime: 0,
+  });
 
   const isManualScrollRef = useRef(false);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -268,14 +279,44 @@ export default function HudNav() {
   useEffect(() => {
     let ticking = false;
 
-    const updateActiveSection = () => {
-      if (window.scrollY < 100) {
+    const updateActiveSectionAndMode = () => {
+      const scrollY = window.scrollY;
+
+      // Mode detection with hysteresis
+      // Trigger drop down when approaching Section 2 (About)
+      const aboutEl = document.getElementById('about');
+      let dropThreshold = 280;
+      if (aboutEl) {
+        dropThreshold = Math.min(aboutEl.offsetTop - window.innerHeight * 0.72, window.innerHeight * 0.38);
+      }
+      dropThreshold = Math.max(180, dropThreshold);
+
+      if (scrollY > dropThreshold) {
+        if (!isHangingModeRef.current) {
+          isHangingModeRef.current = true;
+          dropAnimRef.current.isHanging = true;
+          dropAnimRef.current.dropStartTime = performance.now();
+          dropAnimRef.current.retractStartTime = 0;
+          setIsHangingMode(true);
+        }
+      } else if (scrollY < dropThreshold - 75) {
+        if (isHangingModeRef.current) {
+          isHangingModeRef.current = false;
+          dropAnimRef.current.isHanging = false;
+          dropAnimRef.current.retractStartTime = performance.now();
+          dropAnimRef.current.dropStartTime = 0;
+          setIsHangingMode(false);
+        }
+      }
+
+      // Active Section Spy
+      if (scrollY < 100) {
         setActiveId('hero');
         return;
       }
 
       const windowHeight = window.innerHeight;
-      const scrollPosition = window.scrollY + windowHeight;
+      const scrollPosition = scrollY + windowHeight;
       const docHeight = document.documentElement.scrollHeight;
       if (docHeight - scrollPosition < 80) {
         setActiveId(NAV_ITEMS[NAV_ITEMS.length - 1].id);
@@ -313,14 +354,14 @@ export default function HudNav() {
       if (isManualScrollRef.current) return;
       if (!ticking) {
         window.requestAnimationFrame(() => {
-          updateActiveSection();
+          updateActiveSectionAndMode();
           ticking = false;
         });
         ticking = true;
       }
     };
 
-    updateActiveSection();
+    updateActiveSectionAndMode();
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     window.addEventListener('resize', handleScroll, { passive: true });
@@ -447,11 +488,22 @@ export default function HudNav() {
 
   useLayoutEffect(() => {
     initializePhysics();
-    // Pre-position capsules at their exact node positions immediately
+    // Initial mode detection
+    const scrollY = typeof window !== 'undefined' ? window.scrollY : 0;
+    const aboutEl = typeof document !== 'undefined' ? document.getElementById('about') : null;
+    const dropThreshold = aboutEl ? Math.min(aboutEl.offsetTop - (window.innerHeight || 800) * 0.72, (window.innerHeight || 800) * 0.38) : 280;
+    const initialHanging = scrollY > Math.max(180, dropThreshold);
+    isHangingModeRef.current = initialHanging;
+    dropAnimRef.current.isHanging = initialHanging;
+    setIsHangingMode(initialHanging);
+
+    // Pre-position capsules
     itemsPhysicsRef.current.forEach((item, i) => {
       const capEl = capsuleRefs.current[i];
       if (capEl) {
         capEl.style.transform = `translate3d(${item.nodes[3].x.toFixed(2)}px, ${item.nodes[3].y.toFixed(2)}px, 0) rotate(0deg) translate(-50%, 0)`;
+        capEl.style.opacity = initialHanging ? '1' : '0';
+        capEl.style.pointerEvents = initialHanging ? 'auto' : 'none';
       }
     });
     const handleResize = () => {
@@ -481,76 +533,89 @@ export default function HudNav() {
       const dampingRot = 0.82; // Stops oscillation rapidly
 
       itemsPhysicsRef.current.forEach((item, i) => {
-        if (!prefersReducedMotion) {
-          // 3a. Very Subtle Out-of-Phase Ambient Micro-Sway
-          const idleForceX = Math.sin(timeSec * item.swayFreq + item.swayPhase) * item.swayAmp;
-
-          // 3b. Verlet Integration for Rope Nodes (nodes 1, 2, 3)
-          for (let k = 1; k < 4; k++) {
-            const node = item.nodes[k];
-            const swayMult = k === 3 ? 0.012 : 0.006;
-            const vx = (node.x - node.oldX) * damping + idleForceX * swayMult;
-            const vy = (node.y - node.oldY) * damping + gravity;
-
-            node.oldX = node.x;
-            node.oldY = node.y;
-            node.x += vx;
-            node.y += vy;
-          }
-
-          // Anchor node 0 remains fixed to rail
-          item.nodes[0].x = item.anchorX;
-          item.nodes[0].y = item.anchorY;
-
-          // 3c. Distance / Tension Constraints (4 relaxation iterations)
-          const targetDists = [item.seg0, item.seg1, item.seg2];
-          for (let iter = 0; iter < 4; iter++) {
-            for (let s = 0; s < 3; s++) {
-              const nA = item.nodes[s];
-              const nB = item.nodes[s + 1];
-              const dx = nB.x - nA.x;
-              const dy = nB.y - nA.y;
-              const dist = Math.hypot(dx, dy) || 1e-4;
-              const target = targetDists[s];
-              const diff = (dist - target) / dist;
-
-              if (s === 0) {
-                // Fixed anchor point
-                nB.x -= dx * diff;
-                nB.y -= dy * diff;
+        // Drop progress with elastic tension bounce
+        let progress = 1.0;
+        if (dropAnimRef.current.isHanging) {
+          if (dropAnimRef.current.dropStartTime > 0) {
+            const delay = [0.08, 0.04, 0.0, 0.04, 0.08][i];
+            const t = (now - dropAnimRef.current.dropStartTime) / 1000 - delay;
+            if (t < 0) {
+              progress = 0;
+            } else if (t <= 0.32) {
+              const norm = t / 0.32;
+              progress = norm * norm;
+            } else {
+              const tau = t - 0.32;
+              if (tau > 0.92) {
+                progress = 1.0;
               } else {
-                nA.x += dx * diff * 0.48;
-                nA.y += dy * diff * 0.48;
-                nB.x -= dx * diff * 0.48;
-                nB.y -= dy * diff * 0.48;
+                const decay = Math.exp(-5.2 * tau);
+                const bounce = Math.sin(16.0 * tau);
+                progress = 1.0 + 0.22 * decay * bounce;
               }
             }
+          } else {
+            progress = 1.0;
           }
+        } else {
+          if (dropAnimRef.current.retractStartTime > 0) {
+            const t = (now - dropAnimRef.current.retractStartTime) / 1000;
+            if (t <= 0.28) {
+              progress = Math.max(0, 1 - Math.pow(t / 0.28, 2.2));
+            } else {
+              progress = 0;
+            }
+          } else {
+            progress = 0;
+          }
+        }
 
-          // Strict limit on horizontal displacement to keep ropes tidy and aligned
-          item.nodes[3].x = Math.max(item.anchorX - 7, Math.min(item.anchorX + 7, item.nodes[3].x));
-          item.nodes[2].x = Math.max(item.anchorX - 4.5, Math.min(item.anchorX + 4.5, item.nodes[2].x));
-          item.nodes[1].x = Math.max(item.anchorX - 2.5, Math.min(item.anchorX + 2.5, item.nodes[1].x));
+        const def = NAV_ITEMS[i];
+        const currentRestLen = item.restLength * progress;
 
-          // 3d. Capsule Inertia & Rotational Spring
+        // Fixed anchor
+        item.nodes[0].x = item.anchorX;
+        item.nodes[0].y = item.anchorY;
+
+        // Nodes y position based on progress
+        item.nodes[1].y = item.anchorY + currentRestLen * def.knot1Ratio;
+        item.nodes[2].y = item.anchorY + currentRestLen * def.knot2Ratio;
+        item.nodes[3].y = item.anchorY + currentRestLen;
+
+        // Subtle horizontal sway when extended
+        if (!prefersReducedMotion && progress > 0.4) {
+          const idleForceX = Math.sin(timeSec * item.swayFreq + item.swayPhase) * item.swayAmp;
+          const swayOffset = Math.sin(timeSec * item.swayFreq + item.swayPhase) * item.swayAmp * (item.restLength / 45);
+          item.nodes[3].x = Math.max(item.anchorX - 7, Math.min(item.anchorX + 7, item.anchorX + swayOffset));
+          item.nodes[2].x = Math.max(item.anchorX - 4.5, Math.min(item.anchorX + 4.5, item.anchorX + swayOffset * 0.65));
+          item.nodes[1].x = Math.max(item.anchorX - 2.5, Math.min(item.anchorX + 2.5, item.anchorX + swayOffset * 0.35));
+
+          // Capsule inertia & rotational spring
           const ropeAngle = Math.atan2(item.nodes[3].x - item.nodes[0].x, item.nodes[3].y - item.nodes[0].y);
           const targetAngle = ropeAngle * 0.4;
           const torque = (targetAngle - item.angle) * springRot;
           item.angularVelocity = (item.angularVelocity + torque) * dampingRot;
           item.angle += item.angularVelocity;
-          // Clamp angle to ±0.022 rad (~1.2 deg max) so capsules stay neat and never look crooked
           item.angle = Math.max(-0.022, Math.min(0.022, item.angle));
+        } else {
+          item.nodes[1].x = item.anchorX;
+          item.nodes[2].x = item.anchorX;
+          item.nodes[3].x = item.anchorX;
+          item.angle = 0;
         }
 
-        // 3e. Direct GPU DOM Update for Capsule Tag
+        // GPU DOM update for Capsule Tag
         const capEl = capsuleRefs.current[i];
         if (capEl) {
           const capY = item.nodes[3].y;
           const deg = (item.angle * 180) / Math.PI;
+          const isVisible = progress > 0.05;
+          capEl.style.opacity = isVisible ? Math.min(1, Math.max(0, progress * 3 - 0.15)).toFixed(3) : '0';
+          capEl.style.pointerEvents = progress > 0.85 ? 'auto' : 'none';
           capEl.style.transform = `translate3d(${item.nodes[3].x.toFixed(2)}px, ${capY.toFixed(2)}px, 0) rotate(${deg.toFixed(2)}deg) translate(-50%, 0)`;
         }
 
-        // 3f. Smooth Rope SVG Curve Update
+        // Smooth Rope SVG Curve Update
         const p0 = item.nodes[0];
         const p1 = item.nodes[1];
         const p2 = item.nodes[2];
@@ -560,39 +625,49 @@ export default function HudNav() {
         const mid12y = (p1.y + p2.y) * 0.5;
         const pathD = `M ${p0.x.toFixed(1)},${p0.y.toFixed(1)} Q ${p1.x.toFixed(1)},${p1.y.toFixed(1)} ${mid12x.toFixed(1)},${mid12y.toFixed(1)} Q ${p2.x.toFixed(1)},${p2.y.toFixed(1)} ${p3.x.toFixed(1)},${p3.y.toFixed(1)}`;
 
+        const ropeOpacity = progress > 0.05 ? Math.min(1, Math.max(0, progress * 3)).toFixed(3) : '0';
         const ropePaths = ropePathRefs.current[i];
         if (ropePaths) {
-          if (ropePaths.shadow) ropePaths.shadow.setAttribute('d', pathD);
-          if (ropePaths.core)   ropePaths.core.setAttribute('d', pathD);
-          if (ropePaths.main)   ropePaths.main.setAttribute('d', pathD);
-          if (ropePaths.braid)  ropePaths.braid.setAttribute('d', pathD);
+          if (ropePaths.shadow) {
+            ropePaths.shadow.setAttribute('d', pathD);
+            ropePaths.shadow.style.opacity = ropeOpacity;
+          }
+          if (ropePaths.core) {
+            ropePaths.core.setAttribute('d', pathD);
+            ropePaths.core.style.opacity = ropeOpacity;
+          }
+          if (ropePaths.main) {
+            ropePaths.main.setAttribute('d', pathD);
+            ropePaths.main.style.opacity = ropeOpacity;
+          }
+          if (ropePaths.braid) {
+            ropePaths.braid.setAttribute('d', pathD);
+            ropePaths.braid.style.opacity = ropeOpacity;
+          }
         }
 
-        // 3g. Tangent Orientations for Knots
+        // Tangent Orientations for Knots
         const knotG = knotRefs.current[i];
         if (knotG) {
-          // Knot 0: Anchor
           const angTop = (Math.atan2(p1.y - p0.y, p1.x - p0.x) - Math.PI / 2) * (180 / Math.PI);
           if (knotG.top) {
             knotG.top.setAttribute('transform', `translate(${p0.x.toFixed(2)}, ${p0.y.toFixed(2)}) rotate(${angTop.toFixed(2)})`);
+            knotG.top.style.opacity = ropeOpacity;
           }
-
-          // Knot 1: Upper knot
           const ang1 = (Math.atan2(p2.y - p0.y, p2.x - p0.x) - Math.PI / 2) * (180 / Math.PI);
           if (knotG.knot1) {
             knotG.knot1.setAttribute('transform', `translate(${p1.x.toFixed(2)}, ${p1.y.toFixed(2)}) rotate(${ang1.toFixed(2)})`);
+            knotG.knot1.style.opacity = ropeOpacity;
           }
-
-          // Knot 2: Lower knot
           const ang2 = (Math.atan2(p3.y - p1.y, p3.x - p1.x) - Math.PI / 2) * (180 / Math.PI);
           if (knotG.knot2) {
             knotG.knot2.setAttribute('transform', `translate(${p2.x.toFixed(2)}, ${p2.y.toFixed(2)}) rotate(${ang2.toFixed(2)})`);
+            knotG.knot2.style.opacity = ropeOpacity;
           }
-
-          // Knot 3: Capsule connection knot
           const angBtm = (Math.atan2(p3.y - p2.y, p3.x - p2.x) - Math.PI / 2) * (180 / Math.PI);
           if (knotG.btm) {
             knotG.btm.setAttribute('transform', `translate(${p3.x.toFixed(2)}, ${p3.y.toFixed(2)}) rotate(${angBtm.toFixed(2)})`);
+            knotG.btm.style.opacity = ropeOpacity;
           }
         }
       });
@@ -720,37 +795,94 @@ export default function HudNav() {
       {/* ── DESKTOP SUSPENDED KNOTTED ROPE NAVIGATION (>= 768px) ── */}
       <div
         ref={containerRef}
-        className="hud-nav-shell hud-desktop-nav"
+        className={`hud-nav-shell hud-desktop-nav ${isHangingMode ? 'is-hanging-mode' : 'is-simple-mode'}`}
         style={{
           width: `${railWidth}px`,
-          height: `${containerHeight}px`,
+          height: isHangingMode ? `${containerHeight}px` : '38px',
+          transition: 'height 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
         }}
         onPointerMove={handlePointerMove}
       >
         {/* Main Mounting Rail Container */}
         <motion.nav
           ref={railRef}
-          className="hud-nav hud-mounting-rail"
+          className={`hud-nav hud-mounting-rail ${isHangingMode ? 'is-hanging' : 'is-simple'}`}
           aria-label="Main Navigation"
           initial={{ y: -60, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
         >
-          <div className="hud-rail-top">
-            {/* Pure centered KRXN typography logo redirecting to hero section */}
-            <a
-              href="#hero"
-              className="hud-rail-center-logo"
-              onClick={(e) => handleNavClick(e, 'hero')}
-              aria-label="KRXN — Return to Home section"
-              title="KRXN"
-            >
-              KRXN
-            </a>
-          </div>
+          {/* Animated Brand Logo: Left in Simple Mode, Centered in Hanging Mode */}
+          <motion.a
+            href="#hero"
+            className="hud-rail-brand"
+            onClick={(e) => handleNavClick(e, 'hero')}
+            aria-label="KRXN — Return to Home section"
+            title="KRXN"
+            animate={{
+              left: isHangingMode ? '50%' : '18px',
+              x: isHangingMode ? '-50%' : '0%',
+            }}
+            transition={{
+              duration: 0.45,
+              ease: [0.16, 1, 0.3, 1],
+            }}
+          >
+            KRXN
+          </motion.a>
 
-          {/* Precision Mounting Grommets / Eyelets along the bottom rail edge */}
-          <div className="hud-rail-anchor-track">
+          {/* Simple Mode: Horizontal Nav Links across the rail */}
+          <motion.div
+            className="hud-simple-track"
+            animate={{
+              opacity: isHangingMode ? 0 : 1,
+              scale: isHangingMode ? 0.94 : 1,
+              filter: isHangingMode ? 'blur(3px)' : 'blur(0px)',
+              pointerEvents: isHangingMode ? 'none' : 'auto',
+            }}
+            transition={{
+              duration: 0.35,
+              ease: [0.16, 1, 0.3, 1],
+            }}
+          >
+            <span className="hud-simple-sep" />
+            <div className="hud-simple-nav-links">
+              {NAV_ITEMS.map((item) => {
+                const isActive = activeId === item.id;
+                return (
+                  <a
+                    key={item.id}
+                    href={`#${item.id}`}
+                    className={`hud-simple-item ${isActive ? 'is-active' : ''}`}
+                    onClick={(e) => handleNavClick(e, item.id)}
+                  >
+                    {isActive && (
+                      <motion.span
+                        className="hud-simple-pill-indicator"
+                        layoutId="hud-simple-active-pill"
+                        transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                      />
+                    )}
+                    <span className="hud-simple-num">{item.num}</span>
+                    <span className="hud-simple-text">{item.title}</span>
+                  </a>
+                );
+              })}
+            </div>
+          </motion.div>
+
+          {/* Hanging Mode: Precision Mounting Grommets along bottom rail edge */}
+          <motion.div
+            className="hud-rail-anchor-track"
+            animate={{
+              opacity: isHangingMode ? 1 : 0,
+              scaleY: isHangingMode ? 1 : 0.4,
+            }}
+            transition={{
+              duration: 0.3,
+              ease: [0.16, 1, 0.3, 1],
+            }}
+          >
             {anchorCoords.map((pt, i) => {
               const item = NAV_ITEMS[i];
               const isActive = activeId === item?.id;
@@ -768,189 +900,199 @@ export default function HudNav() {
                 </div>
               );
             })}
-          </div>
+          </motion.div>
         </motion.nav>
 
-        {/* SVG Canvas for Physical Red Cords & Tied Knots */}
-        <svg
-          className="hud-rope-svg"
-          width={railWidth}
-          height={containerHeight}
-          viewBox={`0 0 ${railWidth} ${containerHeight}`}
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: `${railWidth}px`,
-            height: `${containerHeight}px`,
-            pointerEvents: 'none',
-            overflow: 'visible',
-            zIndex: 4,
+        {/* Suspended Red Cords & Hanging Navigation Capsules Layer */}
+        <motion.div
+          className="hud-hanging-elements-layer"
+          animate={{
+            opacity: isHangingMode ? 1 : 0,
+            pointerEvents: isHangingMode ? 'auto' : 'none',
           }}
+          transition={{ duration: 0.3 }}
         >
-          <defs>
-            {/* Deep Crimson Cord Gradient */}
-            <linearGradient id="hud-rope-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#480509" />
-              <stop offset="28%" stopColor="#870e15" />
-              <stop offset="60%" stopColor="#e50914" />
-              <stop offset="85%" stopColor="#b8121a" />
-              <stop offset="100%" stopColor="#3d0306" />
-            </linearGradient>
+          {/* SVG Canvas for Physical Red Cords & Tied Knots */}
+          <svg
+            className="hud-rope-svg"
+            width={railWidth}
+            height={containerHeight}
+            viewBox={`0 0 ${railWidth} ${containerHeight}`}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: `${railWidth}px`,
+              height: `${containerHeight}px`,
+              pointerEvents: 'none',
+              overflow: 'visible',
+              zIndex: 4,
+            }}
+          >
+            <defs>
+              {/* Deep Crimson Cord Gradient */}
+              <linearGradient id="hud-rope-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#480509" />
+                <stop offset="28%" stopColor="#870e15" />
+                <stop offset="60%" stopColor="#e50914" />
+                <stop offset="85%" stopColor="#b8121a" />
+                <stop offset="100%" stopColor="#3d0306" />
+              </linearGradient>
 
-            {/* Rope Shadow Filter */}
-            <filter id="hud-rope-shadow" x="-50%" y="-50%" width="200%" height="200%">
-              <feDropShadow dx="0" dy="2.5" stdDeviation="2" floodColor="rgba(0,0,0,0.65)" />
-            </filter>
+              {/* Rope Shadow Filter */}
+              <filter id="hud-rope-shadow" x="-50%" y="-50%" width="200%" height="200%">
+                <feDropShadow dx="0" dy="2.5" stdDeviation="2" floodColor="rgba(0,0,0,0.65)" />
+              </filter>
 
-            {/* Active Cord Crimson Glow */}
-            <filter id="hud-rope-glow" x="-50%" y="-50%" width="200%" height="200%">
-              <feDropShadow dx="0" dy="0" stdDeviation="3.5" floodColor="rgba(229, 9, 20, 0.8)" />
-            </filter>
-          </defs>
+              {/* Active Cord Crimson Glow */}
+              <filter id="hud-rope-glow" x="-50%" y="-50%" width="200%" height="200%">
+                <feDropShadow dx="0" dy="0" stdDeviation="3.5" floodColor="rgba(229, 9, 20, 0.8)" />
+              </filter>
+            </defs>
 
-          {/* Render each knotted cord */}
-          {NAV_ITEMS.map((item, i) => {
-            const isActive = activeId === item.id;
-            const isHovered = hoveredId === item.id;
+            {/* Render each knotted cord */}
+            {NAV_ITEMS.map((item, i) => {
+              const isActive = activeId === item.id;
+              const isHovered = hoveredId === item.id;
 
-            return (
-              <g
-                key={item.id}
-                className={`hud-rope-group ${isActive ? 'is-active' : ''} ${isHovered ? 'is-hovered' : ''}`}
-                filter={isActive ? 'url(#hud-rope-glow)' : undefined}
-              >
-                {/* Layer 1: Ambient Drop Shadow */}
-                <path
-                  ref={(el) => {
-                    if (!ropePathRefs.current[i]) ropePathRefs.current[i] = {} as any;
-                    ropePathRefs.current[i].shadow = el;
-                  }}
-                  fill="none"
-                  stroke="rgba(0, 0, 0, 0.5)"
-                  strokeWidth="4.5"
-                  strokeLinecap="round"
-                  filter="url(#hud-rope-shadow)"
-                />
-
-                {/* Layer 2: Deep Core Dark Cord */}
-                <path
-                  ref={(el) => {
-                    if (!ropePathRefs.current[i]) ropePathRefs.current[i] = {} as any;
-                    ropePathRefs.current[i].core = el;
-                  }}
-                  fill="none"
-                  stroke="#3d0306"
-                  strokeWidth="2.8"
-                  strokeLinecap="round"
-                />
-
-                {/* Layer 3: Main Rich Crimson Body */}
-                <path
-                  ref={(el) => {
-                    if (!ropePathRefs.current[i]) ropePathRefs.current[i] = {} as any;
-                    ropePathRefs.current[i].main = el;
-                  }}
-                  fill="none"
-                  stroke="url(#hud-rope-grad)"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                />
-
-                {/* Layer 4: Braided Fiber Highlight Thread */}
-                <path
-                  ref={(el) => {
-                    if (!ropePathRefs.current[i]) ropePathRefs.current[i] = {} as any;
-                    ropePathRefs.current[i].braid = el;
-                  }}
-                  fill="none"
-                  stroke="#ff545e"
-                  strokeWidth="0.9"
-                  strokeDasharray="2.5 3.5"
-                  strokeLinecap="round"
-                  opacity={isActive || isHovered ? 0.95 : 0.72}
-                />
-
-                {/* Tied Knots Graphics */}
-                {/* Knot 0: Anchor eyelet hitch knot */}
+              return (
                 <g
-                  ref={(el) => {
-                    if (!knotRefs.current[i]) knotRefs.current[i] = {} as any;
-                    knotRefs.current[i].top = el;
-                  }}
+                  key={item.id}
+                  className={`hud-rope-group ${isActive ? 'is-active' : ''} ${isHovered ? 'is-hovered' : ''}`}
+                  filter={isActive ? 'url(#hud-rope-glow)' : undefined}
                 >
-                  <RopeKnotSVG type="anchor" isActive={isActive} />
-                </g>
+                  {/* Layer 1: Ambient Drop Shadow */}
+                  <path
+                    ref={(el) => {
+                      if (!ropePathRefs.current[i]) ropePathRefs.current[i] = {} as any;
+                      ropePathRefs.current[i].shadow = el;
+                    }}
+                    fill="none"
+                    stroke="rgba(0, 0, 0, 0.5)"
+                    strokeWidth="4.5"
+                    strokeLinecap="round"
+                    filter="url(#hud-rope-shadow)"
+                  />
 
-                {/* Knot 1: Upper handmade cinch knot */}
-                <g
+                  {/* Layer 2: Deep Core Dark Cord */}
+                  <path
+                    ref={(el) => {
+                      if (!ropePathRefs.current[i]) ropePathRefs.current[i] = {} as any;
+                      ropePathRefs.current[i].core = el;
+                    }}
+                    fill="none"
+                    stroke="#3d0306"
+                    strokeWidth="2.8"
+                    strokeLinecap="round"
+                  />
+
+                  {/* Layer 3: Main Rich Crimson Body */}
+                  <path
+                    ref={(el) => {
+                      if (!ropePathRefs.current[i]) ropePathRefs.current[i] = {} as any;
+                      ropePathRefs.current[i].main = el;
+                    }}
+                    fill="none"
+                    stroke="url(#hud-rope-grad)"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                  />
+
+                  {/* Layer 4: Braided Fiber Highlight Thread */}
+                  <path
+                    ref={(el) => {
+                      if (!ropePathRefs.current[i]) ropePathRefs.current[i] = {} as any;
+                      ropePathRefs.current[i].braid = el;
+                    }}
+                    fill="none"
+                    stroke="#ff545e"
+                    strokeWidth="0.9"
+                    strokeDasharray="2.5 3.5"
+                    strokeLinecap="round"
+                    opacity={isActive || isHovered ? 0.95 : 0.72}
+                  />
+
+                  {/* Tied Knots Graphics */}
+                  {/* Knot 0: Anchor eyelet hitch knot */}
+                  <g
+                    ref={(el) => {
+                      if (!knotRefs.current[i]) knotRefs.current[i] = {} as any;
+                      knotRefs.current[i].top = el;
+                    }}
+                  >
+                    <RopeKnotSVG type="anchor" isActive={isActive} />
+                  </g>
+
+                  {/* Knot 1: Upper handmade cinch knot */}
+                  <g
+                    ref={(el) => {
+                      if (!knotRefs.current[i]) knotRefs.current[i] = {} as any;
+                      knotRefs.current[i].knot1 = el;
+                    }}
+                  >
+                    <RopeKnotSVG type="intermediate" isActive={isActive} />
+                  </g>
+
+                  {/* Knot 2: Lower handmade cinch knot */}
+                  <g
+                    ref={(el) => {
+                      if (!knotRefs.current[i]) knotRefs.current[i] = {} as any;
+                      knotRefs.current[i].knot2 = el;
+                    }}
+                  >
+                    <RopeKnotSVG type="intermediate" isActive={isActive} />
+                  </g>
+
+                  {/* Knot 3: Capsule connection knot */}
+                  <g
+                    ref={(el) => {
+                      if (!knotRefs.current[i]) knotRefs.current[i] = {} as any;
+                      knotRefs.current[i].btm = el;
+                    }}
+                  >
+                    <RopeKnotSVG type="capsule" isActive={isActive} />
+                  </g>
+                </g>
+              );
+            })}
+          </svg>
+
+          {/* Suspended Navigation Capsules / Tags */}
+          <div className="hud-capsules-container">
+            {NAV_ITEMS.map((item, i) => {
+              const isActive = activeId === item.id;
+              const isHovered = hoveredId === item.id;
+
+              return (
+                <a
+                  key={item.id}
                   ref={(el) => {
-                    if (!knotRefs.current[i]) knotRefs.current[i] = {} as any;
-                    knotRefs.current[i].knot1 = el;
+                    capsuleRefs.current[i] = el;
                   }}
+                  href={`#${item.id}`}
+                  id={`hud-capsule-${item.id}`}
+                  className={`hud-capsule ${isActive ? 'is-active' : ''} ${isHovered ? 'is-hovered' : ''}`}
+                  aria-current={isActive ? 'page' : undefined}
+                  onClick={(e) => handleCapsuleClick(e, item.id, i)}
+                  onMouseEnter={() => handleCapsuleMouseEnter(i, item.id)}
+                  onMouseLeave={() => handleCapsuleMouseLeave(i)}
+                  onFocus={() => handleCapsuleFocus(i, item.id)}
                 >
-                  <RopeKnotSVG type="intermediate" isActive={isActive} />
-                </g>
+                  {/* Physical Attachment Eyelet Grommet at top center */}
+                  <span className="hud-capsule-grommet">
+                    <span className="hud-capsule-grommet-outer" />
+                    <span className="hud-capsule-grommet-hole" />
+                  </span>
 
-                {/* Knot 2: Lower handmade cinch knot */}
-                <g
-                  ref={(el) => {
-                    if (!knotRefs.current[i]) knotRefs.current[i] = {} as any;
-                    knotRefs.current[i].knot2 = el;
-                  }}
-                >
-                  <RopeKnotSVG type="intermediate" isActive={isActive} />
-                </g>
+                  <span className="hud-capsule-num">{item.num}</span>
+                  <span className="hud-capsule-title">{item.title}</span>
 
-                {/* Knot 3: Capsule connection knot */}
-                <g
-                  ref={(el) => {
-                    if (!knotRefs.current[i]) knotRefs.current[i] = {} as any;
-                    knotRefs.current[i].btm = el;
-                  }}
-                >
-                  <RopeKnotSVG type="capsule" isActive={isActive} />
-                </g>
-              </g>
-            );
-          })}
-        </svg>
-
-        {/* Suspended Navigation Capsules / Tags */}
-        <div className="hud-capsules-container">
-          {NAV_ITEMS.map((item, i) => {
-            const isActive = activeId === item.id;
-            const isHovered = hoveredId === item.id;
-
-            return (
-              <a
-                key={item.id}
-                ref={(el) => {
-                  capsuleRefs.current[i] = el;
-                }}
-                href={`#${item.id}`}
-                id={`hud-capsule-${item.id}`}
-                className={`hud-capsule ${isActive ? 'is-active' : ''} ${isHovered ? 'is-hovered' : ''}`}
-                aria-current={isActive ? 'page' : undefined}
-                onClick={(e) => handleCapsuleClick(e, item.id, i)}
-                onMouseEnter={() => handleCapsuleMouseEnter(i, item.id)}
-                onMouseLeave={() => handleCapsuleMouseLeave(i)}
-                onFocus={() => handleCapsuleFocus(i, item.id)}
-              >
-                {/* Physical Attachment Eyelet Grommet at top center */}
-                <span className="hud-capsule-grommet">
-                  <span className="hud-capsule-grommet-outer" />
-                  <span className="hud-capsule-grommet-hole" />
-                </span>
-
-                <span className="hud-capsule-num">{item.num}</span>
-                <span className="hud-capsule-title">{item.title}</span>
-
-                {isActive && <span className="hud-capsule-active-dot" />}
-              </a>
-            );
-          })}
-        </div>
+                  {isActive && <span className="hud-capsule-active-dot" />}
+                </a>
+              );
+            })}
+          </div>
+        </motion.div>
       </div>
 
       {/* ── MOBILE HUD HEADER (< 768px) ── */}

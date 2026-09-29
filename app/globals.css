@@ -138,44 +138,113 @@ body {
   cursor: default;
 }
 
-.hud-rail-top {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-}
-
-/* ── Centered Pure KRXN Typography (No capsule, clean minimal brand link to Hero) ── */
-.hud-rail-center-logo {
+/* ── Brand Logo in Rail (Dual-Mode: Left in Simple Mode, Centered in Hanging Mode) ── */
+.hud-rail-brand {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
   font-family: var(--font-display);
-  font-size: 16px;
+  font-size: 15.5px;
   font-weight: 800;
   color: var(--red-bright);
-  letter-spacing: 2.8px;
+  letter-spacing: 2.2px;
   text-decoration: none;
   cursor: pointer;
-  background: none;
-  border: none;
-  padding: 2px 8px;
   line-height: 1;
-  transition: all 0.22s ease;
   user-select: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  z-index: 3;
+  z-index: 5;
+  transition: color 0.2s ease, text-shadow 0.2s ease;
 }
 
-.hud-rail-center-logo:hover {
+.hud-rail-brand:hover {
   color: #ffffff;
   text-shadow: 0 0 12px rgba(229, 9, 20, 0.85);
-  transform: scale(1.06);
 }
 
-.hud-rail-center-logo:active {
-  transform: scale(0.96);
+/* ── Simple Mode Track (Horizontal links when on Hero/Top) ── */
+.hud-simple-track {
+  position: absolute;
+  top: 0;
+  left: 82px;
+  right: 14px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 4;
+}
+
+.hud-simple-sep {
+  width: 1px;
+  height: 16px;
+  background: rgba(255, 255, 255, 0.14);
+  flex-shrink: 0;
+}
+
+.hud-simple-nav-links {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 4px;
+}
+
+.hud-simple-item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5.5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition: color 0.2s ease;
+}
+
+.hud-simple-num {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--red-bright);
+  letter-spacing: 0.5px;
+}
+
+.hud-simple-text {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.68);
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  transition: color 0.2s ease;
+}
+
+.hud-simple-item:hover .hud-simple-text {
+  color: #ffffff;
+}
+
+.hud-simple-item.is-active .hud-simple-text {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.hud-simple-pill-indicator {
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  background: rgba(147, 20, 20, 0.42);
+  border: 1px solid rgba(229, 9, 20, 0.55);
+  box-shadow: 0 0 14px rgba(229, 9, 20, 0.35);
+  z-index: 0;
 }
 
 /* ── Mounting Grommets / Eyelets along the bottom rail edge ── */
