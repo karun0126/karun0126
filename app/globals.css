@@ -137,7 +137,7 @@ body {
   cursor: default;
 }
 
-/* ── Brand Logo in Rail (Centered in Hanging Mode only) ── */
+/* ── Brand Logo in Rail (Dead-Centered in Hanging Mode) ── */
 .hud-rail-brand {
   position: absolute;
   top: 50%;
@@ -147,7 +147,7 @@ body {
   font-size: 16.5px;
   font-weight: 800;
   color: var(--red-bright);
-  letter-spacing: 2.4px;
+  letter-spacing: 2.8px;
   text-decoration: none;
   cursor: pointer;
   line-height: 1;
@@ -155,13 +155,15 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  padding-left: 2.8px; /* Optically offsets trailing letter-spacing to guarantee dead-center balance */
+  height: 24px;
   z-index: 5;
   transition: color 0.2s ease, text-shadow 0.2s ease;
 }
 
 .hud-rail-brand:hover {
   color: #ffffff;
-  text-shadow: 0 0 12px rgba(229, 9, 20, 0.85);
+  text-shadow: 0 0 14px rgba(229, 9, 20, 0.95);
 }
 
 /* ── Simple Mode Track (Horizontal links centered across pill on Hero/Top) ── */

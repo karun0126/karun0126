@@ -525,9 +525,6 @@ export default function HudNav() {
      3. Performant 60FPS Physical Tension, Bounce & Hover Pendulum Loop
      ───────────────────────────────────────────────────────────── */
   useEffect(() => {
-    const springK = 32.0;  // Harmonic restoring spring to upright 0 position
-    const damping = 0.945; // Smooth air resistance & rope internal damping
-
     const tick = (now: number) => {
       const elapsedMs = now - lastTimeRef.current;
       lastTimeRef.current = now;
@@ -538,23 +535,23 @@ export default function HudNav() {
         let progress = 1.0;
         if (dropAnimRef.current.isHanging) {
           if (dropAnimRef.current.dropStartTime > 0) {
-            // Elegant micro-wave stagger from center outward: 0ms (center), 16ms, 32ms (outer)
-            const delay = Math.abs(i - 2) * 0.016;
+            // Elegant micro-wave stagger from center outward: 0ms (center), 18ms, 36ms (outer)
+            const delay = Math.abs(i - 2) * 0.018;
             const t = (now - dropAnimRef.current.dropStartTime) / 1000 - delay;
             if (t <= 0) {
               progress = 0;
-            } else if (t >= 0.72) {
+            } else if (t >= 0.80) {
               progress = 1.0;
             } else {
-              // 2nd-order damped harmonic spring-mass unit step response:
-              // Natural frequency wn = 11.2 rad/s, damping ratio zeta = 0.64
-              // Stretches by 7% under tension, rebounds once softly to 0.985, and settles at 1.000
-              const wn = 11.2;
-              const zeta = 0.64;
-              const wd = wn * Math.sqrt(1 - zeta * zeta); // ~8.60 rad/s
+              // 2nd-order damped harmonic spring-mass response:
+              // Natural frequency wn = 10.8 rad/s, damping ratio zeta = 0.68
+              // Stretches by ~5.5% under tension, rebounds once softly, and settles smoothly
+              const wn = 10.8;
+              const zeta = 0.68;
+              const wd = wn * Math.sqrt(1 - zeta * zeta);
               const envelope = Math.exp(-zeta * wn * t);
               const decayTerm = envelope * (Math.cos(wd * t) + (zeta / Math.sqrt(1 - zeta * zeta)) * Math.sin(wd * t));
-              progress = 1.0 - decayTerm;
+              progress = Math.max(0, 1.0 - decayTerm);
             }
           } else {
             progress = 1.0;
@@ -562,8 +559,8 @@ export default function HudNav() {
         } else {
           if (dropAnimRef.current.retractStartTime > 0) {
             const t = (now - dropAnimRef.current.retractStartTime) / 1000;
-            if (t <= 0.26) {
-              progress = Math.max(0, 1 - Math.pow(t / 0.26, 2.0));
+            if (t <= 0.28) {
+              progress = Math.max(0, 1 - Math.pow(t / 0.28, 2.0));
             } else {
               progress = 0;
             }
@@ -572,51 +569,82 @@ export default function HudNav() {
           }
         }
 
-        // Real-life pendulum rope oscillation dynamics (active on hover disturbance)
-        const torque = -springK * item.angle;
-        item.angularVelocity += torque * (dt / 60);
-        item.angularVelocity *= Math.pow(damping, dt);
-        item.angle += item.angularVelocity * (dt / 60);
-        // Clamp to a natural, elegant swing range (max ~8 degrees)
-        item.angle = Math.max(-0.14, Math.min(0.14, item.angle));
+        // True pendulum rope oscillation physics (active on hover disturbance)
+        // Physical natural frequency: omega = sqrt(g / L)
+        // Shorter ropes swing with snappy cadence; longer ropes swing with heavier, graceful inertia
+        const def = NAV_ITEMS[i];
+        const L_eff = item.restLength;
+        const gEff = 2200; // tuned visual gravity constant
+        const naturalOmega = Math.sqrt(gEff / L_eff); // ~7.4 rad/s for 40px, ~4.9 rad/s for 92px
 
-        // When resting (velocity and angle tiny), snap cleanly to 0
-        if (Math.abs(item.angle) < 0.0005 && Math.abs(item.angularVelocity) < 0.001) {
+        // Non-linear pendulum restoring torque: tau = -omega^2 * sin(theta)
+        const restoringTorque = -(naturalOmega * naturalOmega) * Math.sin(item.angle);
+
+        // Fluid aerodynamic drag + rope internal friction: ~0.973 per 1/60s frame
+        // Allows ~3 to 4 smooth, satisfying swings before settling gracefully
+        const frameDamping = Math.pow(0.973, dt);
+
+        // Symplectic numerical integration (conserves phase smoothness without stutter)
+        item.angularVelocity += restoringTorque * (dt / 60);
+        item.angularVelocity *= frameDamping;
+        item.angle += item.angularVelocity * (dt / 60);
+
+        // Infinitely smooth soft saturation at ~16 degrees (0.28 rad) — NEVER hard-clamp!
+        const maxAngle = 0.28;
+        if (Math.abs(item.angle) > maxAngle) {
+          const sign = Math.sign(item.angle);
+          const excess = Math.abs(item.angle) - maxAngle;
+          item.angle = sign * (maxAngle + Math.tanh(excess * 2.0) * 0.04);
+          item.angularVelocity *= 0.88;
+        }
+
+        // Snap cleanly to plumb rest when motion is imperceptible
+        if (Math.abs(item.angle) < 0.0003 && Math.abs(item.angularVelocity) < 0.0008) {
           item.angle = 0;
           item.angularVelocity = 0;
         }
 
         const theta = item.angle;
-        const def = NAV_ITEMS[i];
         const currentRestLen = item.restLength * progress;
 
-        // Fixed anchor at top
-        item.nodes[0].x = item.anchorX;
-        item.nodes[0].y = item.anchorY;
+        // Rope nodes: anchor (0), knot1 (1), knot2 (2), capsule eyelet (3)
+        const p0 = { x: item.anchorX, y: item.anchorY };
 
-        // Realistic curved rope shape during pendulum oscillation
-        const sin1 = Math.sin(theta * 0.45);
-        const cos1 = Math.cos(theta * 0.45);
+        // Subtle, natural catenary sag along swing arc
+        const th1 = theta * 0.38;
         const len1 = currentRestLen * def.knot1Ratio;
-        item.nodes[1].x = item.anchorX + sin1 * len1;
-        item.nodes[1].y = item.anchorY + cos1 * len1;
+        const p1 = {
+          x: item.anchorX + Math.sin(th1) * len1,
+          y: item.anchorY + Math.cos(th1) * len1,
+        };
 
-        const sin2 = Math.sin(theta * 0.78);
-        const cos2 = Math.cos(theta * 0.78);
+        const th2 = theta * 0.74;
         const len2 = currentRestLen * def.knot2Ratio;
-        item.nodes[2].x = item.anchorX + sin2 * len2;
-        item.nodes[2].y = item.anchorY + cos2 * len2;
+        const p2 = {
+          x: item.anchorX + Math.sin(th2) * len2,
+          y: item.anchorY + Math.cos(th2) * len2,
+        };
 
-        const sin3 = Math.sin(theta);
-        const cos3 = Math.cos(theta);
-        item.nodes[3].x = item.anchorX + sin3 * currentRestLen;
-        item.nodes[3].y = item.anchorY + cos3 * currentRestLen;
+        const th3 = theta;
+        const p3 = {
+          x: item.anchorX + Math.sin(th3) * currentRestLen,
+          y: item.anchorY + Math.cos(th3) * currentRestLen,
+        };
+
+        item.nodes[0].x = p0.x;
+        item.nodes[0].y = p0.y;
+        item.nodes[1].x = p1.x;
+        item.nodes[1].y = p1.y;
+        item.nodes[2].x = p2.x;
+        item.nodes[2].y = p2.y;
+        item.nodes[3].x = p3.x;
+        item.nodes[3].y = p3.y;
 
         // GPU DOM update for Capsule Tag with inertia rotation
         const capEl = capsuleRefs.current[i];
         if (capEl) {
-          const capX = item.nodes[3].x;
-          const capY = item.nodes[3].y;
+          const capX = p3.x;
+          const capY = p3.y;
           const deg = (theta * 180) / Math.PI;
           const isVisible = progress > 0.05;
           capEl.style.opacity = isVisible ? Math.min(1, Math.max(0, progress * 3 - 0.15)).toFixed(3) : '0';
@@ -624,15 +652,12 @@ export default function HudNav() {
           capEl.style.transform = `translate3d(${capX.toFixed(2)}px, ${capY.toFixed(2)}px, 0) rotate(${deg.toFixed(2)}deg) translate(-50%, 0)`;
         }
 
-        // Smooth Rope SVG Curve Update
-        const p0 = item.nodes[0];
-        const p1 = item.nodes[1];
-        const p2 = item.nodes[2];
-        const p3 = item.nodes[3];
-
-        const mid12x = (p1.x + p2.x) * 0.5;
-        const mid12y = (p1.y + p2.y) * 0.5;
-        const pathD = `M ${p0.x.toFixed(1)},${p0.y.toFixed(1)} Q ${p1.x.toFixed(1)},${p1.y.toFixed(1)} ${mid12x.toFixed(1)},${mid12y.toFixed(1)} Q ${p2.x.toFixed(1)},${p2.y.toFixed(1)} ${p3.x.toFixed(1)},${p3.y.toFixed(1)}`;
+        // Continuous smooth cubic Bezier rope path (seamless C^1 catenary curve)
+        const cp1x = p0.x + (p1.x - p0.x) * 1.05;
+        const cp1y = p0.y + (p1.y - p0.y) * 1.05;
+        const cp2x = p3.x - (p3.x - p2.x) * 1.05;
+        const cp2y = p3.y - (p3.y - p2.y) * 1.05;
+        const pathD = `M ${p0.x.toFixed(2)},${p0.y.toFixed(2)} C ${cp1x.toFixed(2)},${cp1y.toFixed(2)} ${cp2x.toFixed(2)},${cp2y.toFixed(2)} ${p3.x.toFixed(2)},${p3.y.toFixed(2)}`;
 
         const ropeOpacity = progress > 0.05 ? Math.min(1, Math.max(0, progress * 3)).toFixed(3) : '0';
         const ropePaths = ropePathRefs.current[i];
@@ -705,10 +730,12 @@ export default function HudNav() {
     // Real-life rope pendulum impulse based on cursor entry direction
     const rect = e.currentTarget.getBoundingClientRect();
     const cursorRelativeX = e.clientX - (rect.left + rect.width / 2);
+    // If entering from the left, push toward positive (right); from the right, push toward negative (left)
     const dir = cursorRelativeX < 0 ? 1 : -1;
-    const impulse = dir * 2.8;
 
-    item.angularVelocity += impulse;
+    // Amplitude tuned for satisfying ~14-16 degree pendulum swing
+    const impulse = dir * 2.2;
+    item.angularVelocity = Math.max(-3.2, Math.min(3.2, item.angularVelocity * 0.35 + impulse));
   };
 
   const handleCapsuleMouseMove = (
@@ -717,10 +744,11 @@ export default function HudNav() {
   ) => {
     const item = itemsPhysicsRef.current[idx];
     if (!item) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const cursorRelativeX = e.clientX - (rect.left + rect.width / 2);
-    const nudge = (cursorRelativeX / rect.width) * 0.4;
-    item.angularVelocity += nudge * 0.12;
+    // Sweeping mouse cursor across tag imparts gentle micro-nudges
+    if (Math.abs(e.movementX) > 1) {
+      const sweep = Math.max(-0.4, Math.min(0.4, e.movementX * 0.05));
+      item.angularVelocity += sweep;
+    }
   };
 
   const handleCapsuleMouseLeave = () => {
@@ -787,16 +815,19 @@ export default function HudNav() {
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
         >
-          {/* Animated Brand Logo: Centered in Hanging Mode only */}
+          {/* Animated Brand Logo: Dead-Centered in Hanging Mode */}
           <motion.a
             href="#hero"
             className="hud-rail-brand"
             onClick={(e) => handleNavClick(e, 'hero')}
             aria-label="KRXN — Return to Home section"
             title="KRXN — Return to Home"
+            initial={{ opacity: 0, scale: 0.85, x: '-50%', y: '-50%' }}
             animate={{
               opacity: isHangingMode ? 1 : 0,
               scale: isHangingMode ? 1 : 0.85,
+              x: '-50%',
+              y: '-50%',
               pointerEvents: isHangingMode ? 'auto' : 'none',
             }}
             transition={{
