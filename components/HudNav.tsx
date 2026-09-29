@@ -422,17 +422,17 @@ export default function HudNav() {
     const isTablet = windowWidth < 1024 && windowWidth >= 768;
 
     // Symmetrical, perfectly balanced anchor spacing architecture
-    const spacing = isTablet ? 104 : 126;
-    const margin = isTablet ? 36 : 52;
-    const computedRailW = (NAV_ITEMS.length - 1) * spacing + 2 * margin; // 4 * 126 + 104 = 608px
+    const spacing = isTablet ? 108 : 132;
+    const margin = isTablet ? 40 : 61;
+    const computedRailW = (NAV_ITEMS.length - 1) * spacing + 2 * margin; // 4 * 132 + 122 = 650px
     setRailWidth(computedRailW);
 
-    const anchorY = 40; // Bottom mounting rail edge (rail height is 40px)
+    const anchorY = 46; // Bottom mounting rail edge (rail height is 46px)
 
     // Measure capsule widths or provide comfortable defaults
     const widths: number[] = NAV_ITEMS.map((_, i) => {
       const el = capsuleRefs.current[i];
-      return el && el.offsetWidth > 0 ? el.offsetWidth : (isTablet ? 88 : 102);
+      return el && el.offsetWidth > 0 ? el.offsetWidth : (isTablet ? 96 : 116);
     });
 
     const newAnchors: { x: number; y: number }[] = [];
@@ -440,9 +440,9 @@ export default function HudNav() {
 
     NAV_ITEMS.forEach((def, i) => {
       const capW = widths[i];
-      const capH = isTablet ? 28 : 32;
+      const capH = isTablet ? 30 : 36;
       // Anchor grommet position: EXACTLY margin + i * spacing
-      // Symmetrically spaced: Grommet 2 (02 POSTERS) is at the exact center (296px) right below KRXN!
+      // Symmetrically spaced: Grommet 2 (02 POSTERS) is at the exact center (325px) right below KRXN!
       const anchorX = margin + i * spacing;
 
       newAnchors.push({ x: anchorX, y: anchorY });
@@ -483,7 +483,7 @@ export default function HudNav() {
 
     // Total container height accommodates longest rope + capsule + margin
     const maxRopeLen = Math.max(...newItems.map((item) => item.restLength));
-    setContainerHeight(anchorY + maxRopeLen + 50);
+    setContainerHeight(anchorY + maxRopeLen + 55);
   }, []);
 
   useLayoutEffect(() => {
@@ -798,7 +798,7 @@ export default function HudNav() {
         className={`hud-nav-shell hud-desktop-nav ${isHangingMode ? 'is-hanging-mode' : 'is-simple-mode'}`}
         style={{
           width: `${railWidth}px`,
-          height: isHangingMode ? `${containerHeight}px` : '40px',
+          height: isHangingMode ? `${containerHeight}px` : '46px',
           transition: 'height 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
         }}
         onPointerMove={handlePointerMove}
@@ -820,7 +820,7 @@ export default function HudNav() {
             aria-label="KRXN — Return to Home section"
             title="KRXN"
             animate={{
-              left: isHangingMode ? '50%' : '20px',
+              left: isHangingMode ? '50%' : '24px',
               x: isHangingMode ? '-50%' : '0%',
             }}
             transition={{

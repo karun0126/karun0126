@@ -8,7 +8,6 @@
 /* Fallback & Custom Fonts */
 @font-face { font-family: "Dirty Ego"; src: local("Dirty Ego"); font-display: swap; }
 @font-face { font-family: "Darlington Demo"; src: local("Darlington Demo"); font-display: swap; }
-@font-face { font-family: "Dotum"; src: local("Dotum"); font-display: swap; }
 
 :root {
   --bg-pitch: #0a0a0a;
@@ -25,7 +24,7 @@
   
   --font-display: "Dirty Ego", "Cinzel", "Syne", Impact, sans-serif;
   --font-script: "Darlington Demo", "Playfair Display", "Brush Script MT", cursive;
-  --font-ui: "Dotum", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-ui: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: "Space Mono", "Intel One Mono", "Consolas", monospace;
 
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
@@ -123,16 +122,16 @@ body {
   flex-direction: column;
   justify-content: center;
   width: 100%;
-  height: 40px;
-  padding: 0 20px;
-  background: rgba(12, 12, 12, 0.92);
+  height: 46px;
+  padding: 0 24px;
+  background: rgba(12, 12, 12, 0.94);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 46px;
   box-shadow:
-    0 12px 36px rgba(0, 0, 0, 0.8),
-    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+    0 14px 40px rgba(0, 0, 0, 0.85),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
   z-index: 2;
   pointer-events: auto;
   cursor: default;
@@ -144,7 +143,7 @@ body {
   top: 50%;
   transform: translateY(-50%);
   font-family: var(--font-display);
-  font-size: 16px;
+  font-size: 16.5px;
   font-weight: 800;
   color: var(--red-bright);
   letter-spacing: 2.2px;
@@ -168,19 +167,19 @@ body {
 .hud-simple-track {
   position: absolute;
   top: 0;
-  left: 78px;
-  right: 22px;
+  left: 86px;
+  right: 24px;
   height: 100%;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   z-index: 4;
 }
 
 .hud-simple-sep {
   width: 1px;
-  height: 16px;
-  background: rgba(255, 255, 255, 0.16);
+  height: 18px;
+  background: rgba(255, 255, 255, 0.18);
   flex-shrink: 0;
 }
 
@@ -189,16 +188,16 @@ body {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  gap: 6px;
+  gap: 8px;
 }
 
 .hud-simple-item {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 5.5px;
-  padding: 5px 10px;
-  border-radius: 20px;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 22px;
   text-decoration: none;
   cursor: pointer;
   user-select: none;
@@ -210,9 +209,9 @@ body {
 .hud-simple-num {
   position: relative;
   z-index: 1;
-  font-family: var(--font-ui), 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--font-ui);
   font-feature-settings: 'tnum' 1, 'zero' 0;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 700;
   color: var(--red-bright);
   letter-spacing: 0.6px;
@@ -222,10 +221,10 @@ body {
 .hud-simple-text {
   position: relative;
   z-index: 1;
-  font-family: var(--font-ui), 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-size: 11px;
+  font-family: var(--font-ui);
+  font-size: 11.5px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.72);
+  color: rgba(255, 255, 255, 0.75);
   letter-spacing: 1.1px;
   text-transform: uppercase;
   transition: color 0.2s ease;
@@ -248,10 +247,10 @@ body {
 .hud-simple-pill-indicator {
   position: absolute;
   inset: 0;
-  border-radius: 20px;
-  background: rgba(180, 15, 23, 0.28);
-  border: 1.2px solid rgba(229, 9, 20, 0.75);
-  box-shadow: 0 0 12px rgba(229, 9, 20, 0.35);
+  border-radius: 22px;
+  background: rgba(229, 9, 20, 0.16);
+  border: 1.5px solid rgba(229, 9, 20, 0.78);
+  box-shadow: 0 0 14px rgba(229, 9, 20, 0.4);
   z-index: 0;
 }
 
@@ -336,11 +335,11 @@ body {
   pointer-events: auto;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 5.5px 13px 6px 13px;
+  gap: 8px;
+  padding: 7.5px 18px 8px 18px;
   background: #121212;
   border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 22px;
+  border-radius: 26px;
   box-shadow:
     0 10px 28px rgba(0, 0, 0, 0.85),
     0 0 0 1px rgba(255, 255, 255, 0.05) inset;
@@ -392,9 +391,9 @@ body {
 }
 
 .hud-capsule-num {
-  font-family: var(--font-ui), 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--font-ui);
   font-feature-settings: 'tnum' 1, 'zero' 0;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--red-bright);
   font-weight: 700;
   letter-spacing: 0.6px;
@@ -402,9 +401,9 @@ body {
 }
 
 .hud-capsule-title {
-  font-family: var(--font-ui), 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.75);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.78);
   font-weight: 600;
   letter-spacing: 1.1px;
   text-transform: uppercase;
@@ -441,9 +440,9 @@ body {
   background: #ffffff !important;
   color: #9c0a12 !important;
   font-weight: 800 !important;
-  font-size: 9.5px !important;
-  padding: 1px 4.5px !important;
-  border-radius: 4px !important;
+  font-size: 10px !important;
+  padding: 1.5px 5.5px !important;
+  border-radius: 5px !important;
   letter-spacing: 0.5px !important;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
@@ -451,13 +450,14 @@ body {
 .hud-capsule.is-active .hud-capsule-title {
   color: #ffffff !important;
   font-weight: 800 !important;
+  font-size: 12px !important;
   letter-spacing: 1.2px !important;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
 }
 
 .hud-capsule.is-active .hud-capsule-active-dot {
-  width: 5px;
-  height: 5px;
+  width: 5.5px;
+  height: 5.5px;
   border-radius: 50%;
   background: #ffffff !important;
   box-shadow: 0 0 8px #ffffff, 0 0 14px rgba(255, 255, 255, 0.9) !important;
@@ -466,15 +466,16 @@ body {
 /* Tablet adjustments */
 @media (max-width: 1024px) and (min-width: 768px) {
   .hud-capsule {
-    padding: 3px 8px 3.5px 8px;
-    gap: 4px;
+    padding: 5px 12px 5.5px 12px;
+    gap: 6px;
+    border-radius: 20px;
   }
   .hud-capsule-title {
-    font-size: 8.5px;
-    letter-spacing: 0.6px;
+    font-size: 10px;
+    letter-spacing: 0.8px;
   }
   .hud-capsule-num {
-    font-size: 8px;
+    font-size: 9px;
   }
 }
 
