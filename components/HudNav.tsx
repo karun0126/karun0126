@@ -422,12 +422,12 @@ export default function HudNav() {
     const isTablet = windowWidth < 1024 && windowWidth >= 768;
 
     // Symmetrical, perfectly balanced anchor spacing architecture
-    const spacing = isTablet ? 104 : 124;
-    const margin = isTablet ? 36 : 48;
-    const computedRailW = (NAV_ITEMS.length - 1) * spacing + 2 * margin; // e.g. 4 * 124 + 96 = 592px
+    const spacing = isTablet ? 104 : 126;
+    const margin = isTablet ? 36 : 52;
+    const computedRailW = (NAV_ITEMS.length - 1) * spacing + 2 * margin; // 4 * 126 + 104 = 608px
     setRailWidth(computedRailW);
 
-    const anchorY = 38; // Bottom mounting rail edge (rail height is 38px)
+    const anchorY = 40; // Bottom mounting rail edge (rail height is 40px)
 
     // Measure capsule widths or provide comfortable defaults
     const widths: number[] = NAV_ITEMS.map((_, i) => {
@@ -798,7 +798,7 @@ export default function HudNav() {
         className={`hud-nav-shell hud-desktop-nav ${isHangingMode ? 'is-hanging-mode' : 'is-simple-mode'}`}
         style={{
           width: `${railWidth}px`,
-          height: isHangingMode ? `${containerHeight}px` : '38px',
+          height: isHangingMode ? `${containerHeight}px` : '40px',
           transition: 'height 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
         }}
         onPointerMove={handlePointerMove}
@@ -820,7 +820,7 @@ export default function HudNav() {
             aria-label="KRXN — Return to Home section"
             title="KRXN"
             animate={{
-              left: isHangingMode ? '50%' : '18px',
+              left: isHangingMode ? '50%' : '20px',
               x: isHangingMode ? '-50%' : '0%',
             }}
             transition={{

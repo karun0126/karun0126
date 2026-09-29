@@ -123,7 +123,7 @@ body {
   flex-direction: column;
   justify-content: center;
   width: 100%;
-  height: 38px;
+  height: 40px;
   padding: 0 20px;
   background: rgba(12, 12, 12, 0.92);
   backdrop-filter: blur(20px);
@@ -144,7 +144,7 @@ body {
   top: 50%;
   transform: translateY(-50%);
   font-family: var(--font-display);
-  font-size: 15.5px;
+  font-size: 16px;
   font-weight: 800;
   color: var(--red-bright);
   letter-spacing: 2.2px;
@@ -168,19 +168,19 @@ body {
 .hud-simple-track {
   position: absolute;
   top: 0;
-  left: 82px;
-  right: 14px;
+  left: 78px;
+  right: 22px;
   height: 100%;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   z-index: 4;
 }
 
 .hud-simple-sep {
   width: 1px;
   height: 16px;
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.16);
   flex-shrink: 0;
 }
 
@@ -189,7 +189,7 @@ body {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  gap: 4px;
+  gap: 6px;
 }
 
 .hud-simple-item {
@@ -197,39 +197,47 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 5.5px;
-  padding: 4px 10px;
+  padding: 5px 10px;
   border-radius: 20px;
   text-decoration: none;
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
   transition: color 0.2s ease;
+  line-height: 1;
 }
 
 .hud-simple-num {
   position: relative;
   z-index: 1;
-  font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-family: var(--font-ui), 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-feature-settings: 'tnum' 1, 'zero' 0;
+  font-size: 10.5px;
   font-weight: 700;
   color: var(--red-bright);
-  letter-spacing: 0.5px;
+  letter-spacing: 0.6px;
+  line-height: 1;
 }
 
 .hud-simple-text {
   position: relative;
   z-index: 1;
-  font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-family: var(--font-ui), 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 11px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.68);
-  letter-spacing: 0.8px;
+  color: rgba(255, 255, 255, 0.72);
+  letter-spacing: 1.1px;
   text-transform: uppercase;
   transition: color 0.2s ease;
+  line-height: 1;
 }
 
 .hud-simple-item:hover .hud-simple-text {
   color: #ffffff;
+}
+
+.hud-simple-item.is-active .hud-simple-num {
+  color: #ff4a54;
 }
 
 .hud-simple-item.is-active .hud-simple-text {
@@ -241,9 +249,9 @@ body {
   position: absolute;
   inset: 0;
   border-radius: 20px;
-  background: rgba(147, 20, 20, 0.42);
-  border: 1px solid rgba(229, 9, 20, 0.55);
-  box-shadow: 0 0 14px rgba(229, 9, 20, 0.35);
+  background: rgba(180, 15, 23, 0.28);
+  border: 1.2px solid rgba(229, 9, 20, 0.75);
+  box-shadow: 0 0 12px rgba(229, 9, 20, 0.35);
   z-index: 0;
 }
 
@@ -384,21 +392,24 @@ body {
 }
 
 .hud-capsule-num {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui), 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-feature-settings: 'tnum' 1, 'zero' 0;
   font-size: 10px;
   color: var(--red-bright);
   font-weight: 700;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.6px;
+  line-height: 1;
 }
 
 .hud-capsule-title {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui), 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.72);
+  color: rgba(255, 255, 255, 0.75);
   font-weight: 600;
   letter-spacing: 1.1px;
   text-transform: uppercase;
   transition: color 0.2s ease;
+  line-height: 1;
 }
 
 /* Hover state: tactile reaction and highlight */
