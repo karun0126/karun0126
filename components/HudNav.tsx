@@ -22,10 +22,10 @@ const NAV_ITEMS: NavItemDef[] = [
     title: 'Home',
     label: '00 Home',
     short: 'Home',
-    restLen: 40,
+    restLen: 18,
     restAngle: 0,
-    knot1Ratio: 0.35,
-    knot2Ratio: 0.70,
+    knot1Ratio: 0.38,
+    knot2Ratio: 0.72,
   },
   {
     id: 'about',
@@ -33,10 +33,10 @@ const NAV_ITEMS: NavItemDef[] = [
     title: 'About',
     label: '01 About',
     short: 'About',
-    restLen: 86,
+    restLen: 34,
     restAngle: 0,
-    knot1Ratio: 0.32,
-    knot2Ratio: 0.67,
+    knot1Ratio: 0.34,
+    knot2Ratio: 0.68,
   },
   {
     id: 'posters',
@@ -44,7 +44,7 @@ const NAV_ITEMS: NavItemDef[] = [
     title: 'Posters',
     label: '02 Posters',
     short: 'Posters',
-    restLen: 44,
+    restLen: 20,
     restAngle: 0,
     knot1Ratio: 0.38,
     knot2Ratio: 0.72,
@@ -55,9 +55,9 @@ const NAV_ITEMS: NavItemDef[] = [
     title: 'Case Study',
     label: '03 Case Study',
     short: 'Case Study',
-    restLen: 92,
+    restLen: 38,
     restAngle: 0,
-    knot1Ratio: 0.32,
+    knot1Ratio: 0.34,
     knot2Ratio: 0.68,
   },
   {
@@ -66,10 +66,10 @@ const NAV_ITEMS: NavItemDef[] = [
     title: 'Sketchbook',
     label: '04 Sketchbook',
     short: 'Sketches',
-    restLen: 42,
+    restLen: 18,
     restAngle: 0,
-    knot1Ratio: 0.36,
-    knot2Ratio: 0.70,
+    knot1Ratio: 0.38,
+    knot2Ratio: 0.72,
   },
 ];
 
@@ -485,9 +485,9 @@ export default function HudNav() {
     setAnchorCoords(newAnchors);
     itemsPhysicsRef.current = newItems;
 
-    // Total container height accommodates longest rope + capsule + margin
+    // Total container height accommodates longest rope + capsule + minimal margin
     const maxRopeLen = Math.max(...newItems.map((item) => item.restLength));
-    setContainerHeight(anchorY + maxRopeLen + 55);
+    setContainerHeight(anchorY + maxRopeLen + 38);
   }, []);
 
   useLayoutEffect(() => {
@@ -573,29 +573,29 @@ export default function HudNav() {
         // Physical natural frequency: omega = sqrt(g / L)
         // Shorter ropes swing with snappy cadence; longer ropes swing with heavier, graceful inertia
         const def = NAV_ITEMS[i];
-        const L_eff = item.restLength;
-        const gEff = 2200; // tuned visual gravity constant
-        const naturalOmega = Math.sqrt(gEff / L_eff); // ~7.4 rad/s for 40px, ~4.9 rad/s for 92px
+        const L_eff = Math.max(16, item.restLength);
+        const gEff = 1500; // tuned visual gravity constant for compact ropes
+        const naturalOmega = Math.sqrt(gEff / L_eff); // ~9.1 rad/s for 18px, ~6.3 rad/s for 38px
 
         // Non-linear pendulum restoring torque: tau = -omega^2 * sin(theta)
         const restoringTorque = -(naturalOmega * naturalOmega) * Math.sin(item.angle);
 
-        // Fluid aerodynamic drag + rope internal friction: ~0.973 per 1/60s frame
-        // Allows ~3 to 4 smooth, satisfying swings before settling gracefully
-        const frameDamping = Math.pow(0.973, dt);
+        // Fluid aerodynamic drag + rope internal friction: ~0.965 per 1/60s frame
+        // Elegant, controlled damping that settles in 2-3 gentle oscillations
+        const frameDamping = Math.pow(0.965, dt);
 
         // Symplectic numerical integration (conserves phase smoothness without stutter)
         item.angularVelocity += restoringTorque * (dt / 60);
         item.angularVelocity *= frameDamping;
         item.angle += item.angularVelocity * (dt / 60);
 
-        // Infinitely smooth soft saturation at ~16 degrees (0.28 rad) — NEVER hard-clamp!
-        const maxAngle = 0.28;
+        // Infinitely smooth soft saturation at ~9.2 degrees (0.16 rad) — controlled, subtle amplitude
+        const maxAngle = 0.16;
         if (Math.abs(item.angle) > maxAngle) {
           const sign = Math.sign(item.angle);
           const excess = Math.abs(item.angle) - maxAngle;
-          item.angle = sign * (maxAngle + Math.tanh(excess * 2.0) * 0.04);
-          item.angularVelocity *= 0.88;
+          item.angle = sign * (maxAngle + Math.tanh(excess * 2.5) * 0.02);
+          item.angularVelocity *= 0.84;
         }
 
         // Snap cleanly to plumb rest when motion is imperceptible
@@ -733,9 +733,9 @@ export default function HudNav() {
     // If entering from the left, push toward positive (right); from the right, push toward negative (left)
     const dir = cursorRelativeX < 0 ? 1 : -1;
 
-    // Amplitude tuned for satisfying ~14-16 degree pendulum swing
-    const impulse = dir * 2.2;
-    item.angularVelocity = Math.max(-3.2, Math.min(3.2, item.angularVelocity * 0.35 + impulse));
+    // Amplitude tuned for gentle, elegant ~8-10 degree pendulum swing
+    const impulse = dir * 1.35;
+    item.angularVelocity = Math.max(-1.9, Math.min(1.9, item.angularVelocity * 0.3 + impulse));
   };
 
   const handleCapsuleMouseMove = (
@@ -746,7 +746,7 @@ export default function HudNav() {
     if (!item) return;
     // Sweeping mouse cursor across tag imparts gentle micro-nudges
     if (Math.abs(e.movementX) > 1) {
-      const sweep = Math.max(-0.4, Math.min(0.4, e.movementX * 0.05));
+      const sweep = Math.max(-0.25, Math.min(0.25, e.movementX * 0.03));
       item.angularVelocity += sweep;
     }
   };
