@@ -22,7 +22,7 @@ const NAV_ITEMS: NavItemDef[] = [
     title: 'Home',
     label: '00 Home',
     short: 'Home',
-    restLen: 38,
+    restLen: 40,
     restAngle: 0,
     knot1Ratio: 0.35,
     knot2Ratio: 0.70,
@@ -33,7 +33,7 @@ const NAV_ITEMS: NavItemDef[] = [
     title: 'About',
     label: '01 About',
     short: 'About',
-    restLen: 46,
+    restLen: 86,
     restAngle: 0,
     knot1Ratio: 0.32,
     knot2Ratio: 0.67,
@@ -44,7 +44,7 @@ const NAV_ITEMS: NavItemDef[] = [
     title: 'Posters',
     label: '02 Posters',
     short: 'Posters',
-    restLen: 40,
+    restLen: 44,
     restAngle: 0,
     knot1Ratio: 0.38,
     knot2Ratio: 0.72,
@@ -55,7 +55,7 @@ const NAV_ITEMS: NavItemDef[] = [
     title: 'Case Study',
     label: '03 Case Study',
     short: 'Case Study',
-    restLen: 48,
+    restLen: 92,
     restAngle: 0,
     knot1Ratio: 0.32,
     knot2Ratio: 0.68,
@@ -247,14 +247,14 @@ export default function HudNav() {
   // Shell container and layout state
   const containerRef = useRef<HTMLDivElement>(null);
   const railRef = useRef<HTMLDivElement>(null);
-  const [railWidth, setRailWidth] = useState<number>(620);
-  const [containerHeight, setContainerHeight] = useState<number>(182);
+  const [railWidth, setRailWidth] = useState<number>(680);
+  const [containerHeight, setContainerHeight] = useState<number>(205);
   const [anchorCoords, setAnchorCoords] = useState<{ x: number; y: number }[]>([
     { x: 50, y: 46 },
-    { x: 180, y: 46 },
-    { x: 310, y: 46 },
-    { x: 440, y: 46 },
-    { x: 570, y: 46 },
+    { x: 195, y: 46 },
+    { x: 340, y: 46 },
+    { x: 485, y: 46 },
+    { x: 630, y: 46 },
   ]);
 
   // DOM node references for 60fps direct updates without React re-render spikes
@@ -425,10 +425,10 @@ export default function HudNav() {
     const windowWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
     const isTablet = windowWidth < 1024 && windowWidth >= 768;
 
-    // Symmetrical, perfectly balanced anchor spacing architecture
-    const spacing = isTablet ? 105 : 130;
+    // Symmetrical, perfectly balanced anchor spacing architecture with non-overlapping clearance
+    const spacing = isTablet ? 115 : 145;
     const margin = isTablet ? 45 : 50;
-    const computedRailW = (NAV_ITEMS.length - 1) * spacing + 2 * margin; // 4 * 130 + 100 = 620px
+    const computedRailW = (NAV_ITEMS.length - 1) * spacing + 2 * margin; // 4 * 145 + 100 = 680px
     setRailWidth(computedRailW);
 
     const anchorY = 46; // Bottom mounting rail edge (rail height is 46px)
@@ -446,12 +446,12 @@ export default function HudNav() {
       const capW = widths[i];
       const capH = isTablet ? 30 : 36;
       // Anchor grommet position: EXACTLY margin + i * spacing
-      // Symmetrically spaced: Grommet 2 (02 POSTERS) is at the exact center (310px) right below KRXN!
+      // Symmetrically spaced: Grommet 2 (02 POSTERS) is at the exact center (340px) right below KRXN!
       const anchorX = margin + i * spacing;
 
       newAnchors.push({ x: anchorX, y: anchorY });
 
-      const restLen = isTablet ? Math.round(def.restLen * 0.8) : def.restLen;
+      const restLen = isTablet ? Math.round(def.restLen * 0.85) : def.restLen;
       const seg0 = restLen * def.knot1Ratio;
       const seg1 = restLen * (def.knot2Ratio - def.knot1Ratio);
       const seg2 = restLen * (1 - def.knot2Ratio);
@@ -522,10 +522,17 @@ export default function HudNav() {
   }, [initializePhysics]);
 
   /* ─────────────────────────────────────────────────────────────
-     3. Performant 60FPS Physical Tension & Drop Bounce Loop
+     3. Performant 60FPS Physical Tension, Bounce & Hover Pendulum Loop
      ───────────────────────────────────────────────────────────── */
   useEffect(() => {
+    const springK = 32.0;  // Harmonic restoring spring to upright 0 position
+    const damping = 0.945; // Smooth air resistance & rope internal damping
+
     const tick = (now: number) => {
+      const elapsedMs = now - lastTimeRef.current;
+      lastTimeRef.current = now;
+      const dt = Math.min(32, Math.max(8, elapsedMs)) / 16.666;
+
       itemsPhysicsRef.current.forEach((item, i) => {
         // Drop progress with physical tension bounce
         let progress = 1.0;
@@ -565,40 +572,67 @@ export default function HudNav() {
           }
         }
 
+        // Real-life pendulum rope oscillation dynamics (active on hover disturbance)
+        const torque = -springK * item.angle;
+        item.angularVelocity += torque * (dt / 60);
+        item.angularVelocity *= Math.pow(damping, dt);
+        item.angle += item.angularVelocity * (dt / 60);
+        // Clamp to a natural, elegant swing range (max ~8 degrees)
+        item.angle = Math.max(-0.14, Math.min(0.14, item.angle));
+
+        // When resting (velocity and angle tiny), snap cleanly to 0
+        if (Math.abs(item.angle) < 0.0005 && Math.abs(item.angularVelocity) < 0.001) {
+          item.angle = 0;
+          item.angularVelocity = 0;
+        }
+
+        const theta = item.angle;
         const def = NAV_ITEMS[i];
         const currentRestLen = item.restLength * progress;
 
-        // Rock-solid vertical alignment (plumb straight from anchor grommets, NO continuous oscillation!)
+        // Fixed anchor at top
         item.nodes[0].x = item.anchorX;
         item.nodes[0].y = item.anchorY;
 
-        item.nodes[1].x = item.anchorX;
-        item.nodes[1].y = item.anchorY + currentRestLen * def.knot1Ratio;
+        // Realistic curved rope shape during pendulum oscillation
+        const sin1 = Math.sin(theta * 0.45);
+        const cos1 = Math.cos(theta * 0.45);
+        const len1 = currentRestLen * def.knot1Ratio;
+        item.nodes[1].x = item.anchorX + sin1 * len1;
+        item.nodes[1].y = item.anchorY + cos1 * len1;
 
-        item.nodes[2].x = item.anchorX;
-        item.nodes[2].y = item.anchorY + currentRestLen * def.knot2Ratio;
+        const sin2 = Math.sin(theta * 0.78);
+        const cos2 = Math.cos(theta * 0.78);
+        const len2 = currentRestLen * def.knot2Ratio;
+        item.nodes[2].x = item.anchorX + sin2 * len2;
+        item.nodes[2].y = item.anchorY + cos2 * len2;
 
-        item.nodes[3].x = item.anchorX;
-        item.nodes[3].y = item.anchorY + currentRestLen;
-        item.angle = 0;
+        const sin3 = Math.sin(theta);
+        const cos3 = Math.cos(theta);
+        item.nodes[3].x = item.anchorX + sin3 * currentRestLen;
+        item.nodes[3].y = item.anchorY + cos3 * currentRestLen;
 
-        // GPU DOM update for Capsule Tag
+        // GPU DOM update for Capsule Tag with inertia rotation
         const capEl = capsuleRefs.current[i];
         if (capEl) {
+          const capX = item.nodes[3].x;
           const capY = item.nodes[3].y;
+          const deg = (theta * 180) / Math.PI;
           const isVisible = progress > 0.05;
           capEl.style.opacity = isVisible ? Math.min(1, Math.max(0, progress * 3 - 0.15)).toFixed(3) : '0';
           capEl.style.pointerEvents = progress > 0.85 ? 'auto' : 'none';
-          capEl.style.transform = `translate3d(${item.nodes[3].x.toFixed(2)}px, ${capY.toFixed(2)}px, 0) rotate(0deg) translate(-50%, 0)`;
+          capEl.style.transform = `translate3d(${capX.toFixed(2)}px, ${capY.toFixed(2)}px, 0) rotate(${deg.toFixed(2)}deg) translate(-50%, 0)`;
         }
 
-        // Clean Vertical Straight Rope SVG line
+        // Smooth Rope SVG Curve Update
         const p0 = item.nodes[0];
         const p1 = item.nodes[1];
         const p2 = item.nodes[2];
         const p3 = item.nodes[3];
 
-        const pathD = `M ${p0.x.toFixed(1)},${p0.y.toFixed(1)} L ${p3.x.toFixed(1)},${p3.y.toFixed(1)}`;
+        const mid12x = (p1.x + p2.x) * 0.5;
+        const mid12y = (p1.y + p2.y) * 0.5;
+        const pathD = `M ${p0.x.toFixed(1)},${p0.y.toFixed(1)} Q ${p1.x.toFixed(1)},${p1.y.toFixed(1)} ${mid12x.toFixed(1)},${mid12y.toFixed(1)} Q ${p2.x.toFixed(1)},${p2.y.toFixed(1)} ${p3.x.toFixed(1)},${p3.y.toFixed(1)}`;
 
         const ropeOpacity = progress > 0.05 ? Math.min(1, Math.max(0, progress * 3)).toFixed(3) : '0';
         const ropePaths = ropePathRefs.current[i];
@@ -621,23 +655,27 @@ export default function HudNav() {
           }
         }
 
-        // Tangent Orientations for Knots (aligned vertically at 0deg)
+        // Tangent Orientations for Knots along the curved swinging cord
         const knotG = knotRefs.current[i];
         if (knotG) {
+          const angTop = (Math.atan2(p1.y - p0.y, p1.x - p0.x) - Math.PI / 2) * (180 / Math.PI);
           if (knotG.top) {
-            knotG.top.setAttribute('transform', `translate(${p0.x.toFixed(2)}, ${p0.y.toFixed(2)}) rotate(0)`);
+            knotG.top.setAttribute('transform', `translate(${p0.x.toFixed(2)}, ${p0.y.toFixed(2)}) rotate(${angTop.toFixed(2)})`);
             knotG.top.style.opacity = ropeOpacity;
           }
+          const ang1 = (Math.atan2(p2.y - p0.y, p2.x - p0.x) - Math.PI / 2) * (180 / Math.PI);
           if (knotG.knot1) {
-            knotG.knot1.setAttribute('transform', `translate(${p1.x.toFixed(2)}, ${p1.y.toFixed(2)}) rotate(0)`);
+            knotG.knot1.setAttribute('transform', `translate(${p1.x.toFixed(2)}, ${p1.y.toFixed(2)}) rotate(${ang1.toFixed(2)})`);
             knotG.knot1.style.opacity = ropeOpacity;
           }
+          const ang2 = (Math.atan2(p3.y - p1.y, p3.x - p1.x) - Math.PI / 2) * (180 / Math.PI);
           if (knotG.knot2) {
-            knotG.knot2.setAttribute('transform', `translate(${p2.x.toFixed(2)}, ${p2.y.toFixed(2)}) rotate(0)`);
+            knotG.knot2.setAttribute('transform', `translate(${p2.x.toFixed(2)}, ${p2.y.toFixed(2)}) rotate(${ang2.toFixed(2)})`);
             knotG.knot2.style.opacity = ropeOpacity;
           }
+          const angBtm = (theta * 180) / Math.PI;
           if (knotG.btm) {
-            knotG.btm.setAttribute('transform', `translate(${p3.x.toFixed(2)}, ${p3.y.toFixed(2)}) rotate(0)`);
+            knotG.btm.setAttribute('transform', `translate(${p3.x.toFixed(2)}, ${p3.y.toFixed(2)}) rotate(${angBtm.toFixed(2)})`);
             knotG.btm.style.opacity = ropeOpacity;
           }
         }
@@ -653,10 +691,36 @@ export default function HudNav() {
   }, []);
 
   /* ─────────────────────────────────────────────────────────────
-     4. Interaction Handlers: Stable Hover & Click Navigation
+     4. Interaction Handlers: Real-Life Rope Pendulum Hover & Navigation
      ───────────────────────────────────────────────────────────── */
-  const handleCapsuleMouseEnter = (idx: number, id: string) => {
+  const handleCapsuleMouseEnter = (
+    idx: number,
+    id: string,
+    e: React.MouseEvent<HTMLAnchorElement>
+  ) => {
     setHoveredId(id);
+    const item = itemsPhysicsRef.current[idx];
+    if (!item) return;
+
+    // Real-life rope pendulum impulse based on cursor entry direction
+    const rect = e.currentTarget.getBoundingClientRect();
+    const cursorRelativeX = e.clientX - (rect.left + rect.width / 2);
+    const dir = cursorRelativeX < 0 ? 1 : -1;
+    const impulse = dir * 2.8;
+
+    item.angularVelocity += impulse;
+  };
+
+  const handleCapsuleMouseMove = (
+    idx: number,
+    e: React.MouseEvent<HTMLAnchorElement>
+  ) => {
+    const item = itemsPhysicsRef.current[idx];
+    if (!item) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const cursorRelativeX = e.clientX - (rect.left + rect.width / 2);
+    const nudge = (cursorRelativeX / rect.width) * 0.4;
+    item.angularVelocity += nudge * 0.12;
   };
 
   const handleCapsuleMouseLeave = () => {
@@ -985,7 +1049,8 @@ export default function HudNav() {
                   className={`hud-capsule ${isActive ? 'is-active' : ''} ${isHovered ? 'is-hovered' : ''}`}
                   aria-current={isActive ? 'page' : undefined}
                   onClick={(e) => handleCapsuleClick(e, item.id)}
-                  onMouseEnter={() => handleCapsuleMouseEnter(i, item.id)}
+                  onMouseEnter={(e) => handleCapsuleMouseEnter(i, item.id, e)}
+                  onMouseMove={(e) => handleCapsuleMouseMove(i, e)}
                   onMouseLeave={handleCapsuleMouseLeave}
                   onFocus={() => handleCapsuleFocus(item.id)}
                 >
