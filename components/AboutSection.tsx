@@ -169,7 +169,7 @@ export default function AboutSection() {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           className="stage-img"
-          src="/images/about-bg-clean.png"
+          src="/images/about-bg-clean.jpg"
           alt="About Me — collage with torn paper, vintage film strips, bio, tools and what I do"
           loading="eager"
         />

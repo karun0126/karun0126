@@ -1204,14 +1204,12 @@ export default function HudNav() {
 
               <div className="hud-mobile-drawer-footer">
                 <div className="hud-mobile-footer-links">
-                  <a href="mailto:karunpandey@example.com" className="hud-mobile-footer-link">EMAIL</a>
+                  <a href="mailto:karunpandey66@gmail.com" className="hud-mobile-footer-link">EMAIL</a>
                   <span className="hud-mobile-footer-dot">•</span>
-                  <a href="https://behance.net" target="_blank" rel="noopener noreferrer" className="hud-mobile-footer-link">BEHANCE</a>
-                  <span className="hud-mobile-footer-dot">•</span>
-                  <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="hud-mobile-footer-link">INSTAGRAM</a>
+                  <a href="https://www.behance.net/karunpandey1" target="_blank" rel="noopener noreferrer" className="hud-mobile-footer-link">BEHANCE</a>
                 </div>
                 <div className="hud-mobile-footer-quote">
-                  Every image tells a story. Every story leaves a mark.
+                  KARUN PANDEY • PORTFOLIO
                 </div>
               </div>
             </motion.nav>

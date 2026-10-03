@@ -164,6 +164,8 @@ interface AnimatingPosterState {
   highres: string;
   rect: { left: number; top: number; width: number; height: number };
   tilt: number;
+  cardBg?: { x: number; y: number };
+  scale: number;
 }
 
 export const POSTERS: PosterItem[] = [
@@ -267,17 +269,17 @@ export default function PostersSection({
 
   useEffect(() => {
     setMounted(true);
+    // Preload all high-res posters in background so they are ready instantly
+    POSTERS.forEach((poster) => {
+      const img = new Image();
+      img.src = poster.highres;
+    });
   }, []);
 
-  // Measure exact resting bounding rect without hover effects
+  // Measure exact resting bounding rect from the stationary outer container
   const getRestingRect = (el: HTMLElement) => {
-    const prevTransform = el.style.transform;
-    const prevTransition = el.style.transition;
-    el.style.transform = 'none';
-    el.style.transition = 'none';
-    const rect = el.getBoundingClientRect();
-    el.style.transform = prevTransform;
-    el.style.transition = prevTransition;
+    const outer = (el.closest('.poster-pendulum-outer') as HTMLElement) || el;
+    const rect = outer.getBoundingClientRect();
     return {
       left: rect.left,
       top: rect.top,
@@ -294,6 +296,9 @@ export default function PostersSection({
 
     const rect = getRestingRect(el);
     const tilt = POSTER_TILTS[poster.id] ?? 8.0;
+    const cardBg = POSTER_CARD_BG[poster.id];
+    const stageWidth = sectionRef.current?.clientWidth || window.innerWidth;
+    const scale = stageWidth / 1920;
 
     setActivePoster({
       id: poster.id,
@@ -301,6 +306,8 @@ export default function PostersSection({
       highres: poster.highres,
       rect,
       tilt,
+      cardBg,
+      scale,
     });
     setPhase('falling');
   };
@@ -318,16 +325,20 @@ export default function PostersSection({
     }
   }, [isModalOpen, phase, activePoster]);
 
-  // Lock scroll during animations to keep coordinates perfectly aligned
+  // Prevent wheel/touch scroll during active drop animation without hiding the scrollbar
+  // (Prevents body layout shifts and keeps portal coordinates 100% aligned)
   useEffect(() => {
-    if (phase !== 'idle') {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
+    if (phase === 'falling' || phase === 'returning') {
+      const lockScroll = (e: Event) => {
+        e.preventDefault();
+      };
+      window.addEventListener('wheel', lockScroll, { passive: false });
+      window.addEventListener('touchmove', lockScroll, { passive: false });
+      return () => {
+        window.removeEventListener('wheel', lockScroll);
+        window.removeEventListener('touchmove', lockScroll);
+      };
     }
-    return () => {
-      document.body.style.overflow = '';
-    };
   }, [phase]);
 
   return (
@@ -484,7 +495,7 @@ export default function PostersSection({
               top: activePoster.rect.top,
               width: activePoster.rect.width,
               height: activePoster.rect.height,
-              transformOrigin: '50% 50%',
+              transformOrigin: '50% 10%',
             }}
             initial={{
               y: 0,
@@ -518,12 +529,12 @@ export default function PostersSection({
             transition={
               phase === 'falling'
                 ? {
-                    duration: 0.75, // 750ms: cinematic gravity acceleration within 600-900ms
+                    duration: 0.7,
                     ease: [0.4, 0, 0.75, 0.1],
                   }
                 : {
-                    duration: 0.8, // 800ms: cinematic smooth return within 700-900ms
-                    ease: [0.16, 1, 0.3, 1], // gentle deceleration into resting position, no overshoot
+                    duration: 0.75,
+                    ease: [0.16, 1, 0.3, 1],
                   }
             }
             onAnimationComplete={() => {
@@ -546,8 +557,30 @@ export default function PostersSection({
               }
             }}
           >
+            {/* The instant, guaranteed-rendered Polaroid card slice from the stage slice */}
+            {activePoster.cardBg && (
+              <div
+                className="poster-clone-card-bg"
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  backgroundImage: "url('/images/posters-slice.jpg')",
+                  backgroundSize: `${1920 * activePoster.scale}px ${2160 * activePoster.scale}px`,
+                  backgroundPosition: `-${activePoster.cardBg.x * activePoster.scale}px -${activePoster.cardBg.y * activePoster.scale}px`,
+                  backgroundRepeat: 'no-repeat',
+                  borderRadius: '2px',
+                }}
+              />
+            )}
+            {/* High-res artwork layered seamlessly on top */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={activePoster.highres} alt={activePoster.title} />
+            <img
+              src={activePoster.highres}
+              alt={activePoster.title}
+              className="poster-clone-img"
+              loading="eager"
+              decoding="sync"
+            />
           </motion.div>,
           document.body
         )}
