@@ -9,13 +9,13 @@ export interface NavItemDef {
   title: string;
   label: string;
   short: string;
-  restLen: number;    // Slightly varied resting rope length
-  restAngle: number;  // Natural resting angle in radians (subtle rotation)
+  restLen: number;    // Resting rope length in pixels
+  restAngle: number;  // Natural resting angle in radians
   knot1Ratio: number; // Ratio down the cord for upper knot
   knot2Ratio: number; // Ratio down the cord for lower knot
 }
 
-const NAV_ITEMS: NavItemDef[] = [
+export const NAV_ITEMS: NavItemDef[] = [
   {
     id: 'hero',
     num: '00',
@@ -72,6 +72,40 @@ const NAV_ITEMS: NavItemDef[] = [
     knot2Ratio: 0.72,
   },
 ];
+
+// Pre-computed initial desktop coordinates (zero FOUC, zero hydration jump)
+const DEFAULT_MARGIN = 50;
+const DEFAULT_SPACING = 145;
+const DEFAULT_ANCHOR_Y = 46;
+export const DEFAULT_RAIL_WIDTH = (NAV_ITEMS.length - 1) * DEFAULT_SPACING + 2 * DEFAULT_MARGIN; // 680px
+export const DEFAULT_CONTAINER_HEIGHT = DEFAULT_ANCHOR_Y + 38 + 48; // 132px
+
+export const INITIAL_GEOMETRY = NAV_ITEMS.map((def, i) => {
+  const anchorX = DEFAULT_MARGIN + i * DEFAULT_SPACING;
+  const anchorY = DEFAULT_ANCHOR_Y;
+  const restLen = def.restLen;
+  const p1y = anchorY + restLen * def.knot1Ratio;
+  const p2y = anchorY + restLen * def.knot2Ratio;
+  const p3y = anchorY + restLen;
+  const cp1y = anchorY + (p1y - anchorY) * 1.05;
+  const cp2y = p3y - (p3y - p2y) * 1.05;
+  const pathD = `M ${anchorX.toFixed(2)},${anchorY.toFixed(2)} C ${anchorX.toFixed(2)},${cp1y.toFixed(2)} ${anchorX.toFixed(2)},${cp2y.toFixed(2)} ${anchorX.toFixed(2)},${p3y.toFixed(2)}`;
+
+  return {
+    anchorX,
+    anchorY,
+    restLen,
+    p1y,
+    p2y,
+    p3y,
+    pathD,
+    knotTopTransform: `translate(${anchorX.toFixed(2)}, ${anchorY.toFixed(2)})`,
+    knot1Transform: `translate(${anchorX.toFixed(2)}, ${p1y.toFixed(2)})`,
+    knot2Transform: `translate(${anchorX.toFixed(2)}, ${p2y.toFixed(2)})`,
+    knotBtmTransform: `translate(${anchorX.toFixed(2)}, ${p3y.toFixed(2)})`,
+    capsuleTransform: `translate3d(${anchorX.toFixed(2)}px, ${p3y.toFixed(2)}px, 0) translate(-50%, 0)`,
+  };
+});
 
 interface PhysicsNode {
   x: number;
@@ -229,17 +263,6 @@ export default function HudNav() {
   const [activeId, setActiveId] = useState<string>('hero');
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isHangingMode, setIsHangingMode] = useState<boolean>(false);
-  const isHangingModeRef = useRef<boolean>(false);
-  const dropAnimRef = useRef<{
-    isHanging: boolean;
-    dropStartTime: number;
-    retractStartTime: number;
-  }>({
-    isHanging: false,
-    dropStartTime: 0,
-    retractStartTime: 0,
-  });
 
   const isManualScrollRef = useRef(false);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -247,15 +270,11 @@ export default function HudNav() {
   // Shell container and layout state
   const containerRef = useRef<HTMLDivElement>(null);
   const railRef = useRef<HTMLDivElement>(null);
-  const [railWidth, setRailWidth] = useState<number>(680);
-  const [containerHeight, setContainerHeight] = useState<number>(205);
-  const [anchorCoords, setAnchorCoords] = useState<{ x: number; y: number }[]>([
-    { x: 50, y: 46 },
-    { x: 195, y: 46 },
-    { x: 340, y: 46 },
-    { x: 485, y: 46 },
-    { x: 630, y: 46 },
-  ]);
+  const [railWidth, setRailWidth] = useState<number>(DEFAULT_RAIL_WIDTH);
+  const [containerHeight, setContainerHeight] = useState<number>(DEFAULT_CONTAINER_HEIGHT);
+  const [anchorCoords, setAnchorCoords] = useState<{ x: number; y: number }[]>(
+    INITIAL_GEOMETRY.map((g) => ({ x: g.anchorX, y: g.anchorY }))
+  );
 
   // DOM node references for 60fps direct updates without React re-render spikes
   const capsuleRefs = useRef<(HTMLAnchorElement | null)[]>([]);
@@ -283,38 +302,11 @@ export default function HudNav() {
   useEffect(() => {
     let ticking = false;
 
-    const updateActiveSectionAndMode = () => {
+    const updateActiveSection = () => {
       const scrollY = window.scrollY;
 
-      // Mode detection with clean hysteresis
-      // Trigger drop down when scrolling away from Hero toward About
-      const aboutEl = document.getElementById('about');
-      let dropThreshold = 260;
-      if (aboutEl) {
-        dropThreshold = Math.min(aboutEl.offsetTop - window.innerHeight * 0.68, window.innerHeight * 0.35);
-      }
-      dropThreshold = Math.max(160, dropThreshold);
-
-      if (scrollY > dropThreshold) {
-        if (!isHangingModeRef.current) {
-          isHangingModeRef.current = true;
-          dropAnimRef.current.isHanging = true;
-          dropAnimRef.current.dropStartTime = performance.now();
-          dropAnimRef.current.retractStartTime = 0;
-          setIsHangingMode(true);
-        }
-      } else if (scrollY < dropThreshold - 60) {
-        if (isHangingModeRef.current) {
-          isHangingModeRef.current = false;
-          dropAnimRef.current.isHanging = false;
-          dropAnimRef.current.retractStartTime = performance.now();
-          dropAnimRef.current.dropStartTime = 0;
-          setIsHangingMode(false);
-        }
-      }
-
       // Active Section Spy
-      if (scrollY < 100) {
+      if (scrollY < 120) {
         setActiveId('hero');
         return;
       }
@@ -358,14 +350,14 @@ export default function HudNav() {
       if (isManualScrollRef.current) return;
       if (!ticking) {
         window.requestAnimationFrame(() => {
-          updateActiveSectionAndMode();
+          updateActiveSection();
           ticking = false;
         });
         ticking = true;
       }
     };
 
-    updateActiveSectionAndMode();
+    updateActiveSection();
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     window.addEventListener('resize', handleScroll, { passive: true });
@@ -426,12 +418,12 @@ export default function HudNav() {
     const isTablet = windowWidth < 1024 && windowWidth >= 768;
 
     // Symmetrical, perfectly balanced anchor spacing architecture with non-overlapping clearance
-    const spacing = isTablet ? 115 : 145;
-    const margin = isTablet ? 45 : 50;
-    const computedRailW = (NAV_ITEMS.length - 1) * spacing + 2 * margin; // 4 * 145 + 100 = 680px
+    const spacing = isTablet ? 115 : DEFAULT_SPACING;
+    const margin = isTablet ? 45 : DEFAULT_MARGIN;
+    const computedRailW = (NAV_ITEMS.length - 1) * spacing + 2 * margin; // 680px on desktop, 550px on tablet
     setRailWidth(computedRailW);
 
-    const anchorY = 46; // Bottom mounting rail edge (rail height is 46px)
+    const anchorY = DEFAULT_ANCHOR_Y; // Bottom mounting rail edge (rail height is 46px)
 
     // Measure capsule widths or provide comfortable defaults
     const widths: number[] = NAV_ITEMS.map((_, i) => {
@@ -446,7 +438,7 @@ export default function HudNav() {
       const capW = widths[i];
       const capH = isTablet ? 30 : 36;
       // Anchor grommet position: EXACTLY margin + i * spacing
-      // Symmetrically spaced: Grommet 2 (02 POSTERS) is at the exact center (340px) right below KRXN!
+      // Symmetrically spaced: Grommet 2 (02 POSTERS) is at the exact center right below KRXN!
       const anchorX = margin + i * spacing;
 
       newAnchors.push({ x: anchorX, y: anchorY });
@@ -485,35 +477,13 @@ export default function HudNav() {
     setAnchorCoords(newAnchors);
     itemsPhysicsRef.current = newItems;
 
-    // Total container height accommodates longest rope + capsule + minimal margin
+    // Total container height accommodates longest rope + capsule + margin
     const maxRopeLen = Math.max(...newItems.map((item) => item.restLength));
-    setContainerHeight(anchorY + maxRopeLen + 38);
+    setContainerHeight(anchorY + maxRopeLen + 48);
   }, []);
 
   useLayoutEffect(() => {
     initializePhysics();
-    // Initial mode detection
-    const scrollY = typeof window !== 'undefined' ? window.scrollY : 0;
-    const aboutEl = typeof document !== 'undefined' ? document.getElementById('about') : null;
-    let dropThreshold = 260;
-    if (aboutEl) {
-      dropThreshold = Math.min(aboutEl.offsetTop - (window.innerHeight || 800) * 0.68, (window.innerHeight || 800) * 0.35);
-    }
-    dropThreshold = Math.max(160, dropThreshold);
-    const initialHanging = scrollY > dropThreshold;
-    isHangingModeRef.current = initialHanging;
-    dropAnimRef.current.isHanging = initialHanging;
-    setIsHangingMode(initialHanging);
-
-    // Pre-position capsules
-    itemsPhysicsRef.current.forEach((item, i) => {
-      const capEl = capsuleRefs.current[i];
-      if (capEl) {
-        capEl.style.transform = `translate3d(${item.nodes[3].x.toFixed(2)}px, ${item.nodes[3].y.toFixed(2)}px, 0) rotate(0deg) translate(-50%, 0)`;
-        capEl.style.opacity = initialHanging ? '1' : '0';
-        capEl.style.pointerEvents = initialHanging ? 'auto' : 'none';
-      }
-    });
     const handleResize = () => {
       initializePhysics();
     };
@@ -531,44 +501,6 @@ export default function HudNav() {
       const dt = Math.min(32, Math.max(8, elapsedMs)) / 16.666;
 
       itemsPhysicsRef.current.forEach((item, i) => {
-        // Drop progress with physical tension bounce
-        let progress = 1.0;
-        if (dropAnimRef.current.isHanging) {
-          if (dropAnimRef.current.dropStartTime > 0) {
-            // Elegant micro-wave stagger from center outward: 0ms (center), 18ms, 36ms (outer)
-            const delay = Math.abs(i - 2) * 0.018;
-            const t = (now - dropAnimRef.current.dropStartTime) / 1000 - delay;
-            if (t <= 0) {
-              progress = 0;
-            } else if (t >= 0.80) {
-              progress = 1.0;
-            } else {
-              // 2nd-order damped harmonic spring-mass response:
-              // Natural frequency wn = 10.8 rad/s, damping ratio zeta = 0.68
-              // Stretches by ~5.5% under tension, rebounds once softly, and settles smoothly
-              const wn = 10.8;
-              const zeta = 0.68;
-              const wd = wn * Math.sqrt(1 - zeta * zeta);
-              const envelope = Math.exp(-zeta * wn * t);
-              const decayTerm = envelope * (Math.cos(wd * t) + (zeta / Math.sqrt(1 - zeta * zeta)) * Math.sin(wd * t));
-              progress = Math.max(0, 1.0 - decayTerm);
-            }
-          } else {
-            progress = 1.0;
-          }
-        } else {
-          if (dropAnimRef.current.retractStartTime > 0) {
-            const t = (now - dropAnimRef.current.retractStartTime) / 1000;
-            if (t <= 0.28) {
-              progress = Math.max(0, 1 - Math.pow(t / 0.28, 2.0));
-            } else {
-              progress = 0;
-            }
-          } else {
-            progress = 0;
-          }
-        }
-
         // True pendulum rope oscillation physics (active on hover disturbance)
         // Physical natural frequency: omega = sqrt(g / L)
         // Shorter ropes swing with snappy cadence; longer ropes swing with heavier, graceful inertia
@@ -605,7 +537,7 @@ export default function HudNav() {
         }
 
         const theta = item.angle;
-        const currentRestLen = item.restLength * progress;
+        const currentRestLen = item.restLength;
 
         // Rope nodes: anchor (0), knot1 (1), knot2 (2), capsule eyelet (3)
         const p0 = { x: item.anchorX, y: item.anchorY };
@@ -646,9 +578,6 @@ export default function HudNav() {
           const capX = p3.x;
           const capY = p3.y;
           const deg = (theta * 180) / Math.PI;
-          const isVisible = progress > 0.05;
-          capEl.style.opacity = isVisible ? Math.min(1, Math.max(0, progress * 3 - 0.15)).toFixed(3) : '0';
-          capEl.style.pointerEvents = progress > 0.85 ? 'auto' : 'none';
           capEl.style.transform = `translate3d(${capX.toFixed(2)}px, ${capY.toFixed(2)}px, 0) rotate(${deg.toFixed(2)}deg) translate(-50%, 0)`;
         }
 
@@ -659,24 +588,19 @@ export default function HudNav() {
         const cp2y = p3.y - (p3.y - p2.y) * 1.05;
         const pathD = `M ${p0.x.toFixed(2)},${p0.y.toFixed(2)} C ${cp1x.toFixed(2)},${cp1y.toFixed(2)} ${cp2x.toFixed(2)},${cp2y.toFixed(2)} ${p3.x.toFixed(2)},${p3.y.toFixed(2)}`;
 
-        const ropeOpacity = progress > 0.05 ? Math.min(1, Math.max(0, progress * 3)).toFixed(3) : '0';
         const ropePaths = ropePathRefs.current[i];
         if (ropePaths) {
           if (ropePaths.shadow) {
             ropePaths.shadow.setAttribute('d', pathD);
-            ropePaths.shadow.style.opacity = ropeOpacity;
           }
           if (ropePaths.core) {
             ropePaths.core.setAttribute('d', pathD);
-            ropePaths.core.style.opacity = ropeOpacity;
           }
           if (ropePaths.main) {
             ropePaths.main.setAttribute('d', pathD);
-            ropePaths.main.style.opacity = ropeOpacity;
           }
           if (ropePaths.braid) {
             ropePaths.braid.setAttribute('d', pathD);
-            ropePaths.braid.style.opacity = ropeOpacity;
           }
         }
 
@@ -686,22 +610,18 @@ export default function HudNav() {
           const angTop = (Math.atan2(p1.y - p0.y, p1.x - p0.x) - Math.PI / 2) * (180 / Math.PI);
           if (knotG.top) {
             knotG.top.setAttribute('transform', `translate(${p0.x.toFixed(2)}, ${p0.y.toFixed(2)}) rotate(${angTop.toFixed(2)})`);
-            knotG.top.style.opacity = ropeOpacity;
           }
           const ang1 = (Math.atan2(p2.y - p0.y, p2.x - p0.x) - Math.PI / 2) * (180 / Math.PI);
           if (knotG.knot1) {
             knotG.knot1.setAttribute('transform', `translate(${p1.x.toFixed(2)}, ${p1.y.toFixed(2)}) rotate(${ang1.toFixed(2)})`);
-            knotG.knot1.style.opacity = ropeOpacity;
           }
           const ang2 = (Math.atan2(p3.y - p1.y, p3.x - p1.x) - Math.PI / 2) * (180 / Math.PI);
           if (knotG.knot2) {
             knotG.knot2.setAttribute('transform', `translate(${p2.x.toFixed(2)}, ${p2.y.toFixed(2)}) rotate(${ang2.toFixed(2)})`);
-            knotG.knot2.style.opacity = ropeOpacity;
           }
           const angBtm = (theta * 180) / Math.PI;
           if (knotG.btm) {
             knotG.btm.setAttribute('transform', `translate(${p3.x.toFixed(2)}, ${p3.y.toFixed(2)}) rotate(${angBtm.toFixed(2)})`);
-            knotG.btm.style.opacity = ropeOpacity;
           }
         }
       });
@@ -799,305 +719,243 @@ export default function HudNav() {
       {/* ── DESKTOP SUSPENDED KNOTTED ROPE NAVIGATION (>= 768px) ── */}
       <div
         ref={containerRef}
-        className={`hud-nav-shell hud-desktop-nav ${isHangingMode ? 'is-hanging-mode' : 'is-simple-mode'}`}
+        className="hud-nav-shell hud-desktop-nav"
         style={{
           width: `${railWidth}px`,
-          height: isHangingMode ? `${containerHeight}px` : '46px',
-          transition: 'height 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+          height: `${containerHeight}px`,
         }}
       >
-        {/* Main Mounting Rail Container */}
-        <motion.nav
-          ref={railRef}
-          className={`hud-nav hud-mounting-rail ${isHangingMode ? 'is-hanging' : 'is-simple'}`}
-          aria-label="Main Navigation"
+        <motion.div
+          className="hud-nav-assembly"
           initial={{ y: -60, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
         >
-          {/* Animated Brand Logo: Dead-Centered in Hanging Mode */}
-          <motion.a
-            href="#hero"
-            className="hud-rail-brand"
-            onClick={(e) => handleNavClick(e, 'hero')}
-            aria-label="KRXN — Return to Home section"
-            title="KRXN — Return to Home"
-            initial={{ opacity: 0, scale: 0.85, x: '-50%', y: '-50%' }}
-            animate={{
-              opacity: isHangingMode ? 1 : 0,
-              scale: isHangingMode ? 1 : 0.85,
-              x: '-50%',
-              y: '-50%',
-              pointerEvents: isHangingMode ? 'auto' : 'none',
-            }}
-            transition={{
-              duration: 0.35,
-              ease: [0.16, 1, 0.3, 1],
-            }}
+          {/* Main Mounting Rail Container */}
+          <nav
+            ref={railRef}
+            className="hud-nav hud-mounting-rail"
+            aria-label="Main Navigation"
           >
-            KRXN
-          </motion.a>
+            {/* Centered Brand Logo: KRXN Typography */}
+            <a
+              href="#hero"
+              className="hud-rail-brand"
+              onClick={(e) => handleNavClick(e, 'hero')}
+              aria-label="KRXN — Return to Home section"
+              title="KRXN — Return to Home"
+            >
+              KRXN
+            </a>
 
-          {/* Simple Mode: Horizontal Nav Links across the rail */}
-          <motion.div
-            className="hud-simple-track"
-            animate={{
-              opacity: isHangingMode ? 0 : 1,
-              scale: isHangingMode ? 0.94 : 1,
-              filter: isHangingMode ? 'blur(3px)' : 'blur(0px)',
-              pointerEvents: isHangingMode ? 'none' : 'auto',
-            }}
-            transition={{
-              duration: 0.35,
-              ease: [0.16, 1, 0.3, 1],
-            }}
-          >
-            <div className="hud-simple-nav-links">
-              {NAV_ITEMS.map((item) => {
+            {/* Precision Mounting Grommets along bottom rail edge */}
+            <div className="hud-rail-anchor-track">
+              {anchorCoords.map((pt, i) => {
+                const item = NAV_ITEMS[i];
+                const isActive = activeId === item?.id;
+                const isHovered = hoveredId === item?.id;
+
+                return (
+                  <div
+                    key={item ? item.id : i}
+                    className={`hud-rail-anchor ${isActive ? 'is-active' : ''} ${isHovered ? 'is-hovered' : ''}`}
+                    style={{ left: `${pt.x}px` }}
+                  >
+                    <span className="hud-anchor-grommet">
+                      <span className="hud-anchor-hole" />
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </nav>
+
+          {/* Suspended Red Cords & Hanging Navigation Capsules Layer */}
+          <div className="hud-hanging-elements-layer">
+            {/* SVG Canvas for Physical Red Cords & Tied Knots */}
+            <svg
+              className="hud-rope-svg"
+              width={railWidth}
+              height={containerHeight}
+              viewBox={`0 0 ${railWidth} ${containerHeight}`}
+            >
+              <defs>
+                {/* Deep Crimson Cord Gradient */}
+                <linearGradient id="hud-rope-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#480509" />
+                  <stop offset="28%" stopColor="#870e15" />
+                  <stop offset="60%" stopColor="#e50914" />
+                  <stop offset="85%" stopColor="#b8121a" />
+                  <stop offset="100%" stopColor="#3d0306" />
+                </linearGradient>
+
+                {/* Rope Shadow Filter */}
+                <filter id="hud-rope-shadow" x="-50%" y="-50%" width="200%" height="200%">
+                  <feDropShadow dx="0" dy="2.5" stdDeviation="2" floodColor="rgba(0,0,0,0.65)" />
+                </filter>
+
+                {/* Active Cord Crimson Glow */}
+                <filter id="hud-rope-glow" x="-50%" y="-50%" width="200%" height="200%">
+                  <feDropShadow dx="0" dy="0" stdDeviation="3.5" floodColor="rgba(229, 9, 20, 0.8)" />
+                </filter>
+              </defs>
+
+              {/* Render each knotted cord with pre-rendered resting path */}
+              {NAV_ITEMS.map((item, i) => {
                 const isActive = activeId === item.id;
+                const isHovered = hoveredId === item.id;
+                const init = INITIAL_GEOMETRY[i];
+
+                return (
+                  <g
+                    key={item.id}
+                    className={`hud-rope-group ${isActive ? 'is-active' : ''} ${isHovered ? 'is-hovered' : ''}`}
+                    filter={isActive ? 'url(#hud-rope-glow)' : undefined}
+                  >
+                    {/* Layer 1: Ambient Drop Shadow */}
+                    <path
+                      ref={(el) => {
+                        if (!ropePathRefs.current[i]) ropePathRefs.current[i] = {} as any;
+                        ropePathRefs.current[i].shadow = el;
+                      }}
+                      d={init.pathD}
+                      fill="none"
+                      stroke="rgba(0, 0, 0, 0.5)"
+                      strokeWidth="4.5"
+                      strokeLinecap="round"
+                      filter="url(#hud-rope-shadow)"
+                    />
+
+                    {/* Layer 2: Deep Core Dark Cord */}
+                    <path
+                      ref={(el) => {
+                        if (!ropePathRefs.current[i]) ropePathRefs.current[i] = {} as any;
+                        ropePathRefs.current[i].core = el;
+                      }}
+                      d={init.pathD}
+                      fill="none"
+                      stroke="#3d0306"
+                      strokeWidth="2.8"
+                      strokeLinecap="round"
+                    />
+
+                    {/* Layer 3: Main Rich Crimson Body */}
+                    <path
+                      ref={(el) => {
+                        if (!ropePathRefs.current[i]) ropePathRefs.current[i] = {} as any;
+                        ropePathRefs.current[i].main = el;
+                      }}
+                      d={init.pathD}
+                      fill="none"
+                      stroke="url(#hud-rope-grad)"
+                      strokeWidth="2.2"
+                      strokeLinecap="round"
+                    />
+
+                    {/* Layer 4: Braided Fiber Highlight Thread */}
+                    <path
+                      ref={(el) => {
+                        if (!ropePathRefs.current[i]) ropePathRefs.current[i] = {} as any;
+                        ropePathRefs.current[i].braid = el;
+                      }}
+                      d={init.pathD}
+                      fill="none"
+                      stroke="#ff545e"
+                      strokeWidth="0.9"
+                      strokeDasharray="2.5 3.5"
+                      strokeLinecap="round"
+                      opacity={isActive || isHovered ? 0.95 : 0.72}
+                    />
+
+                    {/* Tied Knots Graphics with pre-rendered resting transforms */}
+                    {/* Knot 0: Anchor eyelet hitch knot */}
+                    <g
+                      ref={(el) => {
+                        if (!knotRefs.current[i]) knotRefs.current[i] = {} as any;
+                        knotRefs.current[i].top = el;
+                      }}
+                      transform={init.knotTopTransform}
+                    >
+                      <RopeKnotSVG type="anchor" isActive={isActive} />
+                    </g>
+
+                    {/* Knot 1: Upper handmade cinch knot */}
+                    <g
+                      ref={(el) => {
+                        if (!knotRefs.current[i]) knotRefs.current[i] = {} as any;
+                        knotRefs.current[i].knot1 = el;
+                      }}
+                      transform={init.knot1Transform}
+                    >
+                      <RopeKnotSVG type="intermediate" isActive={isActive} />
+                    </g>
+
+                    {/* Knot 2: Lower handmade cinch knot */}
+                    <g
+                      ref={(el) => {
+                        if (!knotRefs.current[i]) knotRefs.current[i] = {} as any;
+                        knotRefs.current[i].knot2 = el;
+                      }}
+                      transform={init.knot2Transform}
+                    >
+                      <RopeKnotSVG type="intermediate" isActive={isActive} />
+                    </g>
+
+                    {/* Knot 3: Capsule connection knot */}
+                    <g
+                      ref={(el) => {
+                        if (!knotRefs.current[i]) knotRefs.current[i] = {} as any;
+                        knotRefs.current[i].btm = el;
+                      }}
+                      transform={init.knotBtmTransform}
+                    >
+                      <RopeKnotSVG type="capsule" isActive={isActive} />
+                    </g>
+                  </g>
+                );
+              })}
+            </svg>
+
+            {/* Suspended Navigation Capsules / Tags */}
+            <div className="hud-capsules-container">
+              {NAV_ITEMS.map((item, i) => {
+                const isActive = activeId === item.id;
+                const isHovered = hoveredId === item.id;
+                const init = INITIAL_GEOMETRY[i];
+
                 return (
                   <a
                     key={item.id}
+                    ref={(el) => {
+                      capsuleRefs.current[i] = el;
+                    }}
                     href={`#${item.id}`}
-                    className={`hud-simple-item ${isActive ? 'is-active' : ''}`}
-                    onClick={(e) => handleNavClick(e, item.id)}
+                    id={`hud-capsule-${item.id}`}
+                    className={`hud-capsule ${isActive ? 'is-active' : ''} ${isHovered ? 'is-hovered' : ''}`}
+                    style={{
+                      transform: init.capsuleTransform,
+                    }}
+                    aria-current={isActive ? 'page' : undefined}
+                    onClick={(e) => handleCapsuleClick(e, item.id)}
+                    onMouseEnter={(e) => handleCapsuleMouseEnter(i, item.id, e)}
+                    onMouseMove={(e) => handleCapsuleMouseMove(i, e)}
+                    onMouseLeave={handleCapsuleMouseLeave}
+                    onFocus={() => handleCapsuleFocus(item.id)}
                   >
-                    {isActive && (
-                      <motion.span
-                        className="hud-simple-pill-indicator"
-                        layoutId="hud-simple-active-pill"
-                        transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                      />
-                    )}
-                    <span className="hud-simple-num">{item.num}</span>
-                    <span className="hud-simple-text">{item.title}</span>
+                    {/* Physical Attachment Eyelet Grommet at top center */}
+                    <span className="hud-capsule-grommet">
+                      <span className="hud-capsule-grommet-outer" />
+                      <span className="hud-capsule-grommet-hole" />
+                    </span>
+
+                    <span className="hud-capsule-num">{item.num}</span>
+                    <span className="hud-capsule-title">{item.title}</span>
+
+                    {isActive && <span className="hud-capsule-active-dot" />}
                   </a>
                 );
               })}
             </div>
-          </motion.div>
-
-          {/* Hanging Mode: Precision Mounting Grommets along bottom rail edge */}
-          <motion.div
-            className="hud-rail-anchor-track"
-            animate={{
-              opacity: isHangingMode ? 1 : 0,
-              scaleY: isHangingMode ? 1 : 0.4,
-            }}
-            transition={{
-              duration: 0.3,
-              ease: [0.16, 1, 0.3, 1],
-            }}
-          >
-            {anchorCoords.map((pt, i) => {
-              const item = NAV_ITEMS[i];
-              const isActive = activeId === item?.id;
-              const isHovered = hoveredId === item?.id;
-
-              return (
-                <div
-                  key={item ? item.id : i}
-                  className={`hud-rail-anchor ${isActive ? 'is-active' : ''} ${isHovered ? 'is-hovered' : ''}`}
-                  style={{ left: `${pt.x}px` }}
-                >
-                  <span className="hud-anchor-grommet">
-                    <span className="hud-anchor-hole" />
-                  </span>
-                </div>
-              );
-            })}
-          </motion.div>
-        </motion.nav>
-
-        {/* Suspended Red Cords & Hanging Navigation Capsules Layer */}
-        <motion.div
-          className="hud-hanging-elements-layer"
-          animate={{
-            opacity: isHangingMode ? 1 : 0,
-            pointerEvents: isHangingMode ? 'auto' : 'none',
-          }}
-          transition={{ duration: 0.3 }}
-        >
-          {/* SVG Canvas for Physical Red Cords & Tied Knots */}
-          <svg
-            className="hud-rope-svg"
-            width={railWidth}
-            height={containerHeight}
-            viewBox={`0 0 ${railWidth} ${containerHeight}`}
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: `${railWidth}px`,
-              height: `${containerHeight}px`,
-              pointerEvents: 'none',
-              overflow: 'visible',
-              zIndex: 4,
-            }}
-          >
-            <defs>
-              {/* Deep Crimson Cord Gradient */}
-              <linearGradient id="hud-rope-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#480509" />
-                <stop offset="28%" stopColor="#870e15" />
-                <stop offset="60%" stopColor="#e50914" />
-                <stop offset="85%" stopColor="#b8121a" />
-                <stop offset="100%" stopColor="#3d0306" />
-              </linearGradient>
-
-              {/* Rope Shadow Filter */}
-              <filter id="hud-rope-shadow" x="-50%" y="-50%" width="200%" height="200%">
-                <feDropShadow dx="0" dy="2.5" stdDeviation="2" floodColor="rgba(0,0,0,0.65)" />
-              </filter>
-
-              {/* Active Cord Crimson Glow */}
-              <filter id="hud-rope-glow" x="-50%" y="-50%" width="200%" height="200%">
-                <feDropShadow dx="0" dy="0" stdDeviation="3.5" floodColor="rgba(229, 9, 20, 0.8)" />
-              </filter>
-            </defs>
-
-            {/* Render each knotted cord */}
-            {NAV_ITEMS.map((item, i) => {
-              const isActive = activeId === item.id;
-              const isHovered = hoveredId === item.id;
-
-              return (
-                <g
-                  key={item.id}
-                  className={`hud-rope-group ${isActive ? 'is-active' : ''} ${isHovered ? 'is-hovered' : ''}`}
-                  filter={isActive ? 'url(#hud-rope-glow)' : undefined}
-                >
-                  {/* Layer 1: Ambient Drop Shadow */}
-                  <path
-                    ref={(el) => {
-                      if (!ropePathRefs.current[i]) ropePathRefs.current[i] = {} as any;
-                      ropePathRefs.current[i].shadow = el;
-                    }}
-                    fill="none"
-                    stroke="rgba(0, 0, 0, 0.5)"
-                    strokeWidth="4.5"
-                    strokeLinecap="round"
-                    filter="url(#hud-rope-shadow)"
-                  />
-
-                  {/* Layer 2: Deep Core Dark Cord */}
-                  <path
-                    ref={(el) => {
-                      if (!ropePathRefs.current[i]) ropePathRefs.current[i] = {} as any;
-                      ropePathRefs.current[i].core = el;
-                    }}
-                    fill="none"
-                    stroke="#3d0306"
-                    strokeWidth="2.8"
-                    strokeLinecap="round"
-                  />
-
-                  {/* Layer 3: Main Rich Crimson Body */}
-                  <path
-                    ref={(el) => {
-                      if (!ropePathRefs.current[i]) ropePathRefs.current[i] = {} as any;
-                      ropePathRefs.current[i].main = el;
-                    }}
-                    fill="none"
-                    stroke="url(#hud-rope-grad)"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                  />
-
-                  {/* Layer 4: Braided Fiber Highlight Thread */}
-                  <path
-                    ref={(el) => {
-                      if (!ropePathRefs.current[i]) ropePathRefs.current[i] = {} as any;
-                      ropePathRefs.current[i].braid = el;
-                    }}
-                    fill="none"
-                    stroke="#ff545e"
-                    strokeWidth="0.9"
-                    strokeDasharray="2.5 3.5"
-                    strokeLinecap="round"
-                    opacity={isActive || isHovered ? 0.95 : 0.72}
-                  />
-
-                  {/* Tied Knots Graphics */}
-                  {/* Knot 0: Anchor eyelet hitch knot */}
-                  <g
-                    ref={(el) => {
-                      if (!knotRefs.current[i]) knotRefs.current[i] = {} as any;
-                      knotRefs.current[i].top = el;
-                    }}
-                  >
-                    <RopeKnotSVG type="anchor" isActive={isActive} />
-                  </g>
-
-                  {/* Knot 1: Upper handmade cinch knot */}
-                  <g
-                    ref={(el) => {
-                      if (!knotRefs.current[i]) knotRefs.current[i] = {} as any;
-                      knotRefs.current[i].knot1 = el;
-                    }}
-                  >
-                    <RopeKnotSVG type="intermediate" isActive={isActive} />
-                  </g>
-
-                  {/* Knot 2: Lower handmade cinch knot */}
-                  <g
-                    ref={(el) => {
-                      if (!knotRefs.current[i]) knotRefs.current[i] = {} as any;
-                      knotRefs.current[i].knot2 = el;
-                    }}
-                  >
-                    <RopeKnotSVG type="intermediate" isActive={isActive} />
-                  </g>
-
-                  {/* Knot 3: Capsule connection knot */}
-                  <g
-                    ref={(el) => {
-                      if (!knotRefs.current[i]) knotRefs.current[i] = {} as any;
-                      knotRefs.current[i].btm = el;
-                    }}
-                  >
-                    <RopeKnotSVG type="capsule" isActive={isActive} />
-                  </g>
-                </g>
-              );
-            })}
-          </svg>
-
-          {/* Suspended Navigation Capsules / Tags */}
-          <div className="hud-capsules-container">
-            {NAV_ITEMS.map((item, i) => {
-              const isActive = activeId === item.id;
-              const isHovered = hoveredId === item.id;
-
-              return (
-                <a
-                  key={item.id}
-                  ref={(el) => {
-                    capsuleRefs.current[i] = el;
-                  }}
-                  href={`#${item.id}`}
-                  id={`hud-capsule-${item.id}`}
-                  className={`hud-capsule ${isActive ? 'is-active' : ''} ${isHovered ? 'is-hovered' : ''}`}
-                  aria-current={isActive ? 'page' : undefined}
-                  onClick={(e) => handleCapsuleClick(e, item.id)}
-                  onMouseEnter={(e) => handleCapsuleMouseEnter(i, item.id, e)}
-                  onMouseMove={(e) => handleCapsuleMouseMove(i, e)}
-                  onMouseLeave={handleCapsuleMouseLeave}
-                  onFocus={() => handleCapsuleFocus(item.id)}
-                >
-                  {/* Physical Attachment Eyelet Grommet at top center */}
-                  <span className="hud-capsule-grommet">
-                    <span className="hud-capsule-grommet-outer" />
-                    <span className="hud-capsule-grommet-hole" />
-                  </span>
-
-                  <span className="hud-capsule-num">{item.num}</span>
-                  <span className="hud-capsule-title">{item.title}</span>
-
-                  {isActive && <span className="hud-capsule-active-dot" />}
-                </a>
-              );
-            })}
           </div>
         </motion.div>
       </div>
