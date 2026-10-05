@@ -370,7 +370,8 @@ export default function PostersSection({
           className="stage-img"
           src="/images/posters-slice.jpg"
           alt="Poster Designs — Curated series of 6 cinematic posters"
-          loading="eager"
+          loading="lazy"
+          decoding="async"
         />
 
         {/* Rotating star overlay — plain div handles stage positioning,
@@ -378,7 +379,7 @@ export default function PostersSection({
             Framer Motion transform interference with position:absolute. */}
         <div className="posters-rolling-star">
           <motion.img
-            src="/images/about-star.png"
+            src="/images/about-star.webp"
             alt=""
             aria-hidden="true"
             style={{

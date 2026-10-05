@@ -5,12 +5,6 @@ import { motion, useScroll, useTransform, useSpring, useReducedMotion } from 'fr
 import Stage from './Stage';
 import particlesData from '@/data/about-particles.json';
 
-// Preload ink layer as early as possible
-if (typeof window !== 'undefined') {
-  const preloadImg = new Image();
-  preloadImg.src = '/images/about-text-ink.png';
-}
-
 export default function AboutSection() {
   const sectionRef = useRef<HTMLElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -117,7 +111,7 @@ export default function AboutSection() {
   // Load ink image
   useEffect(() => {
     const img = new Image();
-    img.src = '/images/about-text-ink.png';
+    img.src = '/images/about-text-ink.webp';
     if (img.complete) {
       inkImgRef.current = img;
       setImgLoaded(true);
@@ -169,9 +163,10 @@ export default function AboutSection() {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           className="stage-img"
-          src="/images/about-bg-clean.jpg"
+          src="/images/about-bg-clean.webp"
           alt="About Me — collage with torn paper, vintage film strips, bio, tools and what I do"
-          loading="eager"
+          loading="lazy"
+          decoding="async"
         />
 
         {/* Dynamic Ink Density Particles Canvas revealing the exact text on scroll */}
@@ -186,7 +181,7 @@ export default function AboutSection() {
         {/* Rolling Star attached right below the hanging white line */}
         <motion.img
           className="about-rolling-star"
-          src="/images/about-star.png"
+          src="/images/about-star.webp"
           alt=""
           aria-hidden="true"
           style={{ rotate }}

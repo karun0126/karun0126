@@ -35,6 +35,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <link rel="preload" as="image" href="/images/hero-clean-bg.jpg" fetchPriority="high" />
+      </head>
       <body>
         <CursorTrail />
         {children}

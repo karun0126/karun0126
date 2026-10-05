@@ -17,91 +17,91 @@ const CHAPTERS: Chapter[] = [
     id: 'intro',
     height: 1365,
     frameClass: 'cs-frame-1365',
-    imgSrc: '/images/dead-signal-01-intro.jpg',
+    imgSrc: '/images/dead-signal-01-intro.webp',
     alt: 'Dead Signal Brand Introduction',
   },
   {
     id: 'philosophy',
     height: 1365,
     frameClass: 'cs-frame-1365',
-    imgSrc: '/images/dead-signal-02-philosophy.jpg',
+    imgSrc: '/images/dead-signal-02-philosophy.webp',
     alt: 'Dead Signal Brand Philosophy and Visual Identity',
   },
   {
     id: 'values',
     height: 1365,
     frameClass: 'cs-frame-1365',
-    imgSrc: '/images/dead-signal-03-values.jpg',
+    imgSrc: '/images/dead-signal-03-values.webp',
     alt: 'Dead Signal Core Values and Mission',
   },
   {
     id: 'personality',
     height: 1365,
     frameClass: 'cs-frame-1365',
-    imgSrc: '/images/dead-signal-04-personality.jpg',
+    imgSrc: '/images/dead-signal-04-personality.webp',
     alt: 'Dead Signal Brand Personality — Bold, Mysterious, Cinematic',
   },
   {
     id: 'lookbook',
     height: 1365,
     frameClass: 'cs-frame-1365',
-    imgSrc: '/images/dead-signal-05-lookbook.jpg',
+    imgSrc: '/images/dead-signal-05-lookbook.webp',
     alt: 'Dead Signal Streetwear and Apparel Lookbook',
   },
   {
     id: 'showcase1',
     height: 1080,
     frameClass: 'cs-frame-1080',
-    imgSrc: '/images/dead-signal-06-showcase1.jpg',
+    imgSrc: '/images/dead-signal-06-showcase1.webp',
     alt: 'Dead Signal Visual Showcase',
   },
   {
     id: 'showcase2',
     height: 1365,
     frameClass: 'cs-frame-1365',
-    imgSrc: '/images/dead-signal-07-showcase2.jpg',
+    imgSrc: '/images/dead-signal-07-showcase2.webp',
     alt: 'Dead Signal Visual Showcase II',
   },
   {
     id: 'mascot-newm',
     height: 2730,
     frameClass: 'cs-frame-2730',
-    imgSrc: '/images/dead-signal-08-mascot-newm.jpg',
+    imgSrc: '/images/dead-signal-08-mascot-newm.webp',
     alt: 'Introducing NEWM — The little face behind every fresh idea. Curious. Creative. New.',
   },
   {
     id: 'mascot-shy',
     height: 2730,
     frameClass: 'cs-frame-2730',
-    imgSrc: '/images/dead-signal-09-mascot-shy.jpg',
+    imgSrc: '/images/dead-signal-09-mascot-shy.webp',
     alt: 'NEWM Mascot Story — he\'s Shyy and hurry uppp!',
   },
   {
     id: 'color-theory',
     height: 1365,
     frameClass: 'cs-frame-1365',
-    imgSrc: '/images/dead-signal-10-color-theory.jpg',
+    imgSrc: '/images/dead-signal-10-color-theory.webp',
     alt: 'Dead Signal Color Theory — A restrained palette built on contrast, hierarchy and emotion',
   },
   {
     id: 'color-system',
     height: 1365,
     frameClass: 'cs-frame-1365',
-    imgSrc: '/images/dead-signal-11-color-system.jpg',
+    imgSrc: '/images/dead-signal-11-color-system.webp',
     alt: 'Dead Signal Color System — Depth, Clarity, Danger, Energy',
   },
   {
     id: 'typography',
     height: 1365,
     frameClass: 'cs-frame-1365',
-    imgSrc: '/images/dead-signal-12-typography.jpg',
+    imgSrc: '/images/dead-signal-12-typography.webp',
     alt: 'Dead Signal Typography — Libre Bodoni Typeface and Brand Manifesto',
   },
   {
     id: 'frame87',
     height: 15019,
     frameClass: 'cs-frame-15019',
-    imgSrc: '/images/frame87-full.jpg',
+    imgSrc: '/images/frame87-full.webp',
     alt: 'Dead Signal Complete Mockup, Apparel, Packaging and Footwear Collection',
   },
 ];
@@ -135,6 +135,7 @@ export default function CaseStudySection() {
               src={chapter.imgSrc}
               alt={chapter.alt}
               loading="lazy"
+              decoding="async"
             />
           </Stage>
         </motion.div>

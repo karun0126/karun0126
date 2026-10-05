@@ -22,9 +22,10 @@ export default function SketchbookSection() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             className="stage-img"
-            src="/images/sketchbook-full.jpg"
+            src="/images/sketchbook-full.webp"
             alt="Original Sketches — Complete Hand-drawn Artworks, Studies and Sketchbook Collection by Karun"
-            loading="eager"
+            loading="lazy"
+            decoding="async"
           />
         </Stage>
       </div>

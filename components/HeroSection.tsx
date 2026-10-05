@@ -128,7 +128,7 @@ export default function HeroSection() {
           src="/images/hero-clean-bg.jpg"
           alt="Karun Pandey Portfolio Hero — Artistic portrait and bold KRXN typography"
           loading="eager"
-          decoding="sync"
+          decoding="async"
         />
 
         {/* Moving Group: Figma Group 79 Hand + Posters Collage + Black Trailing Curtain */}
@@ -140,10 +140,10 @@ export default function HeroSection() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             className="hero-hand-img"
-            src="/images/hand-posters-collage.png"
+            src="/images/hand-posters-collage.webp"
             alt=""
             loading="eager"
-            decoding="sync"
+            decoding="async"
           />
 
           {/* Trailing black background on the right side of the hand group */}

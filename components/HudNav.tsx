@@ -73,7 +73,6 @@ export const NAV_ITEMS: NavItemDef[] = [
   },
 ];
 
-// Pre-computed initial desktop coordinates (zero FOUC, zero hydration jump)
 const DEFAULT_MARGIN = 50;
 const DEFAULT_SPACING = 145;
 const DEFAULT_ANCHOR_Y = 46;
@@ -120,10 +119,10 @@ interface ItemPhysics {
   anchorY: number;
   restLength: number;
   restAngle: number;
-  nodes: PhysicsNode[]; // 4 nodes: 0 (anchor), 1 (upper knot), 2 (lower knot), 3 (capsule top)
-  seg0: number; // Anchor -> knot1
-  seg1: number; // Knot1 -> knot2
-  seg2: number; // Knot2 -> capsule
+  nodes: PhysicsNode[];
+  seg0: number;
+  seg1: number;
+  seg2: number;
   angle: number;
   angularVelocity: number;
   swayFreq: number;
@@ -144,25 +143,21 @@ function RopeKnotSVG({
   isActive?: boolean;
 }) {
   if (type === 'anchor') {
-    // Knot looping around the mounting rail eyelet with tiny tail
     return (
       <g>
         <ellipse cx="0" cy="1" rx="4.8" ry="3.2" fill="rgba(0,0,0,0.6)" filter="blur(1px)" />
-        {/* Rear loop */}
         <path
           d="M -4.2 -1.5 C -3.8 -3.8, 3.8 -2.8, 4.2 0.5 C 4.6 2.6, -3.2 3.6, -4.2 1.5 Z"
           fill="#63070d"
           stroke="#380205"
           strokeWidth="0.6"
         />
-        {/* Front wrap loop */}
         <path
           d="M -3.5 -0.8 C -1.2 -2.5, 2.8 -1.5, 3.5 1.2 C 1.6 2.8, -1.8 2.2, -3.5 -0.8 Z"
           fill="#a31018"
           stroke="#e50914"
           strokeWidth="0.5"
         />
-        {/* Fiber highlight ridge */}
         <path
           d="M -2.2 -0.8 Q 0.5 -1.6 2.4 0.8"
           fill="none"
@@ -170,7 +165,6 @@ function RopeKnotSVG({
           strokeWidth="0.8"
           strokeLinecap="round"
         />
-        {/* Small hanging cord tail */}
         <path
           d="M 1.8 1.5 Q 3.8 4.2 2.8 6.5"
           fill="none"
@@ -191,11 +185,9 @@ function RopeKnotSVG({
   }
 
   if (type === 'capsule') {
-    // Hangman/tag cinch knot sitting directly above the capsule eyelet with loop threading through
     return (
       <g>
         <ellipse cx="0" cy="-4" rx="4.8" ry="3.5" fill="rgba(0,0,0,0.6)" filter="blur(1px)" />
-        {/* Cinch body */}
         <rect
           x="-4"
           y="-7.5"
@@ -206,14 +198,11 @@ function RopeKnotSVG({
           stroke="#380205"
           strokeWidth="0.6"
         />
-        {/* Wrap coils */}
         <line x1="-3.2" y1="-6.0" x2="3.2" y2="-6.0" stroke="#a31018" strokeWidth="1.3" strokeLinecap="round" />
         <line x1="-3.5" y1="-4.2" x2="3.5" y2="-4.2" stroke="#c9141f" strokeWidth="1.4" strokeLinecap="round" />
         <line x1="-3.2" y1="-2.4" x2="3.2" y2="-2.4" stroke="#a31018" strokeWidth="1.3" strokeLinecap="round" />
-        {/* Highlight sheen */}
         <line x1="-2.0" y1="-6.0" x2="1.5" y2="-6.0" stroke="#ff545e" strokeWidth="0.75" strokeLinecap="round" />
         <line x1="-2.2" y1="-4.2" x2="1.6" y2="-4.2" stroke="#ff545e" strokeWidth="0.8" strokeLinecap="round" />
-        {/* Loop threading cleanly through the capsule grommet hole at (0, 0) */}
         <path
           d="M -1.8 -1.2 Q 0 1.6 1.8 -1.2"
           fill="none"
@@ -225,13 +214,10 @@ function RopeKnotSVG({
     );
   }
 
-  // Intermediate handmade knot
   return (
     <g>
       <ellipse cx="0" cy="0.8" rx="4.4" ry="3" fill="rgba(0,0,0,0.55)" filter="blur(1px)" />
-      {/* Base knot bulge */}
       <ellipse cx="0" cy="0" rx="3.8" ry="2.8" fill="#63070d" stroke="#380205" strokeWidth="0.5" />
-      {/* Diagonal crossover strand */}
       <path
         d="M -3.0 1.8 C -1.0 -1.5, 1.0 -1.5, 3.0 -1.8"
         fill="none"
@@ -246,7 +232,6 @@ function RopeKnotSVG({
         strokeWidth="0.8"
         strokeLinecap="round"
       />
-      {/* Reverse tuck */}
       <path
         d="M -2.4 -1.6 Q 0 0.8 2.4 1.6"
         fill="none"
@@ -263,6 +248,18 @@ export default function HudNav() {
   const [activeId, setActiveId] = useState<string>('hero');
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isHangingMode, setIsHangingMode] = useState<boolean>(false);
+  const isHangingModeRef = useRef<boolean>(false);
+
+  const dropAnimRef = useRef<{
+    isHanging: boolean;
+    dropStartTime: number;
+    retractStartTime: number;
+  }>({
+    isHanging: false,
+    dropStartTime: 0,
+    retractStartTime: 0,
+  });
 
   const isManualScrollRef = useRef(false);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -297,13 +294,235 @@ export default function HudNav() {
   const lastTimeRef = useRef<number>(performance.now());
 
   /* ─────────────────────────────────────────────────────────────
-     1. Robust Active Section Detection via Viewport Focal Line
+     1. High-Performance Animation Loop (Runs ONLY when animating)
+     ───────────────────────────────────────────────────────────── */
+  const wakeLoop = useCallback(() => {
+    if (animFrameRef.current !== null) return;
+    lastTimeRef.current = performance.now();
+
+    const tick = (now: number) => {
+      const elapsedMs = now - lastTimeRef.current;
+      lastTimeRef.current = now;
+      const dt = Math.min(32, Math.max(8, elapsedMs)) / 16.666;
+
+      const isHanging = dropAnimRef.current.isHanging;
+      const dropElapsed = isHanging && dropAnimRef.current.dropStartTime > 0 ? (now - dropAnimRef.current.dropStartTime) / 1000 : 999;
+      const retractElapsed = !isHanging && dropAnimRef.current.retractStartTime > 0 ? (now - dropAnimRef.current.retractStartTime) / 1000 : 999;
+
+      let anyMotion = false;
+
+      itemsPhysicsRef.current.forEach((item, i) => {
+        // Physical Drop & Retract Harmonic Progress
+        let progress = 0;
+        if (isHanging) {
+          if (dropAnimRef.current.dropStartTime === 0) {
+            // Already settled hanging
+            progress = 1.0;
+          } else {
+            // Micro-wave stagger: 0ms (center Posters), 18ms (About/CaseStudy), 36ms (Home/Sketchbook)
+            const delay = Math.abs(i - 2) * 0.018;
+            const t = dropElapsed - delay;
+            if (t <= 0) {
+              progress = 0;
+              anyMotion = true;
+            } else if (t >= 0.82) {
+              progress = 1.0;
+            } else {
+              anyMotion = true;
+              // 2nd-order damped harmonic spring-mass response:
+              // wn = 10.8 rad/s, zeta = 0.68
+              // Stretches smoothly by 5.5% under tension, rebounds once softly, settles plumb
+              const wn = 10.8;
+              const zeta = 0.68;
+              const wd = wn * Math.sqrt(1 - zeta * zeta);
+              const envelope = Math.exp(-zeta * wn * t);
+              const decayTerm = envelope * (Math.cos(wd * t) + (zeta / Math.sqrt(1 - zeta * zeta)) * Math.sin(wd * t));
+              progress = Math.max(0, 1.0 - decayTerm);
+            }
+          }
+        } else {
+          if (dropAnimRef.current.retractStartTime === 0) {
+            progress = 0;
+          } else {
+            const t = retractElapsed;
+            if (t <= 0.28) {
+              anyMotion = true;
+              progress = Math.max(0, 1 - Math.pow(t / 0.28, 2.0));
+            } else {
+              progress = 0;
+            }
+          }
+        }
+
+        // True pendulum rope oscillation physics
+        const def = NAV_ITEMS[i];
+        const L_eff = Math.max(16, item.restLength);
+        const gEff = 1500;
+        const naturalOmega = Math.sqrt(gEff / L_eff);
+
+        const restoringTorque = -(naturalOmega * naturalOmega) * Math.sin(item.angle);
+        const frameDamping = Math.pow(0.965, dt);
+
+        item.angularVelocity += restoringTorque * (dt / 60);
+        item.angularVelocity *= frameDamping;
+        item.angle += item.angularVelocity * (dt / 60);
+
+        const maxAngle = 0.16;
+        if (Math.abs(item.angle) > maxAngle) {
+          const sign = Math.sign(item.angle);
+          const excess = Math.abs(item.angle) - maxAngle;
+          item.angle = sign * (maxAngle + Math.tanh(excess * 2.5) * 0.02);
+          item.angularVelocity *= 0.84;
+        }
+
+        if (Math.abs(item.angle) < 0.0003 && Math.abs(item.angularVelocity) < 0.0008) {
+          item.angle = 0;
+          item.angularVelocity = 0;
+        } else {
+          anyMotion = true;
+        }
+
+        const theta = item.angle;
+        const currentRestLen = item.restLength * progress;
+
+        const p0 = { x: item.anchorX, y: item.anchorY };
+        const th1 = theta * 0.38;
+        const len1 = currentRestLen * def.knot1Ratio;
+        const p1 = {
+          x: item.anchorX + Math.sin(th1) * len1,
+          y: item.anchorY + Math.cos(th1) * len1,
+        };
+
+        const th2 = theta * 0.74;
+        const len2 = currentRestLen * def.knot2Ratio;
+        const p2 = {
+          x: item.anchorX + Math.sin(th2) * len2,
+          y: item.anchorY + Math.cos(th2) * len2,
+        };
+
+        const th3 = theta;
+        const p3 = {
+          x: item.anchorX + Math.sin(th3) * currentRestLen,
+          y: item.anchorY + Math.cos(th3) * currentRestLen,
+        };
+
+        item.nodes[0].x = p0.x;
+        item.nodes[0].y = p0.y;
+        item.nodes[1].x = p1.x;
+        item.nodes[1].y = p1.y;
+        item.nodes[2].x = p2.x;
+        item.nodes[2].y = p2.y;
+        item.nodes[3].x = p3.x;
+        item.nodes[3].y = p3.y;
+
+        // GPU DOM update for Capsule Tag
+        const capEl = capsuleRefs.current[i];
+        if (capEl) {
+          const deg = (theta * 180) / Math.PI;
+          const isVisible = progress > 0.05;
+          capEl.style.opacity = isVisible ? Math.min(1, Math.max(0, progress * 3 - 0.15)).toFixed(3) : '0';
+          capEl.style.pointerEvents = progress > 0.85 ? 'auto' : 'none';
+          capEl.style.transform = `translate3d(${p3.x.toFixed(2)}px, ${p3.y.toFixed(2)}px, 0) rotate(${deg.toFixed(2)}deg) translate(-50%, 0)`;
+        }
+
+        // Continuous smooth cubic Bezier rope path
+        const cp1x = p0.x + (p1.x - p0.x) * 1.05;
+        const cp1y = p0.y + (p1.y - p0.y) * 1.05;
+        const cp2x = p3.x - (p3.x - p2.x) * 1.05;
+        const cp2y = p3.y - (p3.y - p2.y) * 1.05;
+        const pathD = `M ${p0.x.toFixed(2)},${p0.y.toFixed(2)} C ${cp1x.toFixed(2)},${cp1y.toFixed(2)} ${cp2x.toFixed(2)},${cp2y.toFixed(2)} ${p3.x.toFixed(2)},${p3.y.toFixed(2)}`;
+
+        const ropeOpacity = progress > 0.05 ? Math.min(1, Math.max(0, progress * 3)).toFixed(3) : '0';
+        const ropePaths = ropePathRefs.current[i];
+        if (ropePaths) {
+          if (ropePaths.shadow) {
+            ropePaths.shadow.setAttribute('d', pathD);
+            ropePaths.shadow.style.opacity = ropeOpacity;
+          }
+          if (ropePaths.core) {
+            ropePaths.core.setAttribute('d', pathD);
+            ropePaths.core.style.opacity = ropeOpacity;
+          }
+          if (ropePaths.main) {
+            ropePaths.main.setAttribute('d', pathD);
+            ropePaths.main.style.opacity = ropeOpacity;
+          }
+          if (ropePaths.braid) {
+            ropePaths.braid.setAttribute('d', pathD);
+            ropePaths.braid.style.opacity = ropeOpacity;
+          }
+        }
+
+        // Tangents for Knots
+        const knotG = knotRefs.current[i];
+        if (knotG) {
+          const angTop = (Math.atan2(p1.y - p0.y, p1.x - p0.x) - Math.PI / 2) * (180 / Math.PI);
+          if (knotG.top) {
+            knotG.top.setAttribute('transform', `translate(${p0.x.toFixed(2)}, ${p0.y.toFixed(2)}) rotate(${angTop.toFixed(2)})`);
+            knotG.top.style.opacity = ropeOpacity;
+          }
+          const ang1 = (Math.atan2(p2.y - p0.y, p2.x - p0.x) - Math.PI / 2) * (180 / Math.PI);
+          if (knotG.knot1) {
+            knotG.knot1.setAttribute('transform', `translate(${p1.x.toFixed(2)}, ${p1.y.toFixed(2)}) rotate(${ang1.toFixed(2)})`);
+            knotG.knot1.style.opacity = ropeOpacity;
+          }
+          const ang2 = (Math.atan2(p3.y - p1.y, p3.x - p1.x) - Math.PI / 2) * (180 / Math.PI);
+          if (knotG.knot2) {
+            knotG.knot2.setAttribute('transform', `translate(${p2.x.toFixed(2)}, ${p2.y.toFixed(2)}) rotate(${ang2.toFixed(2)})`);
+            knotG.knot2.style.opacity = ropeOpacity;
+          }
+          const angBtm = (theta * 180) / Math.PI;
+          if (knotG.btm) {
+            knotG.btm.setAttribute('transform', `translate(${p3.x.toFixed(2)}, ${p3.y.toFixed(2)}) rotate(${angBtm.toFixed(2)})`);
+            knotG.btm.style.opacity = ropeOpacity;
+          }
+        }
+      });
+
+      // If animation has fully settled, shut down RAF loop to consume 0% idle CPU
+      if (!anyMotion) {
+        animFrameRef.current = null;
+        return;
+      }
+
+      animFrameRef.current = requestAnimationFrame(tick);
+    };
+
+    animFrameRef.current = requestAnimationFrame(tick);
+  }, []);
+
+  /* ─────────────────────────────────────────────────────────────
+     2. Mode Switching (Simple on Hero -> Drops on Page 2+) & Spy
      ───────────────────────────────────────────────────────────── */
   useEffect(() => {
     let ticking = false;
 
-    const updateActiveSection = () => {
+    const updateActiveSectionAndMode = () => {
       const scrollY = window.scrollY;
+
+      // Threshold: Scroll away from Hero toward About
+      const windowHeight = window.innerHeight;
+      const dropThreshold = Math.max(180, windowHeight * 0.38);
+
+      if (scrollY > dropThreshold) {
+        if (!isHangingModeRef.current) {
+          isHangingModeRef.current = true;
+          dropAnimRef.current.isHanging = true;
+          dropAnimRef.current.dropStartTime = performance.now();
+          dropAnimRef.current.retractStartTime = 0;
+          setIsHangingMode(true);
+          wakeLoop();
+        }
+      } else if (scrollY < dropThreshold - 70) {
+        if (isHangingModeRef.current) {
+          isHangingModeRef.current = false;
+          dropAnimRef.current.isHanging = false;
+          dropAnimRef.current.retractStartTime = performance.now();
+          dropAnimRef.current.dropStartTime = 0;
+          setIsHangingMode(false);
+          wakeLoop();
+        }
+      }
 
       // Active Section Spy
       if (scrollY < 120) {
@@ -311,7 +530,6 @@ export default function HudNav() {
         return;
       }
 
-      const windowHeight = window.innerHeight;
       const scrollPosition = scrollY + windowHeight;
       const docHeight = document.documentElement.scrollHeight;
       if (docHeight - scrollPosition < 80) {
@@ -350,14 +568,14 @@ export default function HudNav() {
       if (isManualScrollRef.current) return;
       if (!ticking) {
         window.requestAnimationFrame(() => {
-          updateActiveSection();
+          updateActiveSectionAndMode();
           ticking = false;
         });
         ticking = true;
       }
     };
 
-    updateActiveSection();
+    updateActiveSectionAndMode();
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     window.addEventListener('resize', handleScroll, { passive: true });
@@ -383,8 +601,12 @@ export default function HudNav() {
       if (scrollTimeoutRef.current) {
         clearTimeout(scrollTimeoutRef.current);
       }
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = null;
+      }
     };
-  }, []);
+  }, [wakeLoop]);
 
   // Lock body scroll when mobile menu is open
   useEffect(() => {
@@ -409,7 +631,7 @@ export default function HudNav() {
   }, [isMobileMenuOpen]);
 
   /* ─────────────────────────────────────────────────────────────
-     2. Layout Measurement & Physics System Initialization
+     3. Physics System Initialization
      ───────────────────────────────────────────────────────────── */
   const initializePhysics = useCallback(() => {
     if (!containerRef.current) return;
@@ -417,15 +639,13 @@ export default function HudNav() {
     const windowWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
     const isTablet = windowWidth < 1024 && windowWidth >= 768;
 
-    // Symmetrical, perfectly balanced anchor spacing architecture with non-overlapping clearance
     const spacing = isTablet ? 115 : DEFAULT_SPACING;
     const margin = isTablet ? 45 : DEFAULT_MARGIN;
-    const computedRailW = (NAV_ITEMS.length - 1) * spacing + 2 * margin; // 680px on desktop, 550px on tablet
+    const computedRailW = (NAV_ITEMS.length - 1) * spacing + 2 * margin;
     setRailWidth(computedRailW);
 
-    const anchorY = DEFAULT_ANCHOR_Y; // Bottom mounting rail edge (rail height is 46px)
+    const anchorY = DEFAULT_ANCHOR_Y;
 
-    // Measure capsule widths or provide comfortable defaults
     const widths: number[] = NAV_ITEMS.map((_, i) => {
       const el = capsuleRefs.current[i];
       return el && el.offsetWidth > 0 ? el.offsetWidth : (isTablet ? 96 : 116);
@@ -437,8 +657,6 @@ export default function HudNav() {
     NAV_ITEMS.forEach((def, i) => {
       const capW = widths[i];
       const capH = isTablet ? 30 : 36;
-      // Anchor grommet position: EXACTLY margin + i * spacing
-      // Symmetrically spaced: Grommet 2 (02 POSTERS) is at the exact center right below KRXN!
       const anchorX = margin + i * spacing;
 
       newAnchors.push({ x: anchorX, y: anchorY });
@@ -448,7 +666,6 @@ export default function HudNav() {
       const seg1 = restLen * (def.knot2Ratio - def.knot1Ratio);
       const seg2 = restLen * (1 - def.knot2Ratio);
 
-      // Create 4 nodes: anchor, knot1, knot2, capsule attachment
       const n0 = { x: anchorX, y: anchorY, oldX: anchorX, oldY: anchorY };
       const n1 = { x: anchorX, y: anchorY + seg0, oldX: anchorX, oldY: anchorY + seg0 };
       const n2 = { x: anchorX, y: anchorY + seg0 + seg1, oldX: anchorX, oldY: anchorY + seg0 + seg1 };
@@ -477,13 +694,34 @@ export default function HudNav() {
     setAnchorCoords(newAnchors);
     itemsPhysicsRef.current = newItems;
 
-    // Total container height accommodates longest rope + capsule + margin
     const maxRopeLen = Math.max(...newItems.map((item) => item.restLength));
     setContainerHeight(anchorY + maxRopeLen + 48);
   }, []);
 
   useLayoutEffect(() => {
     initializePhysics();
+
+    // Check initial scroll position
+    const scrollY = typeof window !== 'undefined' ? window.scrollY : 0;
+    const windowHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
+    const dropThreshold = Math.max(180, windowHeight * 0.38);
+
+    const initialHanging = scrollY > dropThreshold;
+    isHangingModeRef.current = initialHanging;
+    dropAnimRef.current.isHanging = initialHanging;
+    setIsHangingMode(initialHanging);
+
+    // Pre-position capsules cleanly
+    itemsPhysicsRef.current.forEach((item, i) => {
+      const capEl = capsuleRefs.current[i];
+      if (capEl) {
+        const yPos = item.anchorY + (initialHanging ? item.restLength : 0);
+        capEl.style.transform = `translate3d(${item.anchorX.toFixed(2)}px, ${yPos.toFixed(2)}px, 0) translate(-50%, 0)`;
+        capEl.style.opacity = initialHanging ? '1' : '0';
+        capEl.style.pointerEvents = initialHanging ? 'auto' : 'none';
+      }
+    });
+
     const handleResize = () => {
       initializePhysics();
     };
@@ -492,151 +730,7 @@ export default function HudNav() {
   }, [initializePhysics]);
 
   /* ─────────────────────────────────────────────────────────────
-     3. Performant 60FPS Physical Tension, Bounce & Hover Pendulum Loop
-     ───────────────────────────────────────────────────────────── */
-  useEffect(() => {
-    const tick = (now: number) => {
-      const elapsedMs = now - lastTimeRef.current;
-      lastTimeRef.current = now;
-      const dt = Math.min(32, Math.max(8, elapsedMs)) / 16.666;
-
-      itemsPhysicsRef.current.forEach((item, i) => {
-        // True pendulum rope oscillation physics (active on hover disturbance)
-        // Physical natural frequency: omega = sqrt(g / L)
-        // Shorter ropes swing with snappy cadence; longer ropes swing with heavier, graceful inertia
-        const def = NAV_ITEMS[i];
-        const L_eff = Math.max(16, item.restLength);
-        const gEff = 1500; // tuned visual gravity constant for compact ropes
-        const naturalOmega = Math.sqrt(gEff / L_eff); // ~9.1 rad/s for 18px, ~6.3 rad/s for 38px
-
-        // Non-linear pendulum restoring torque: tau = -omega^2 * sin(theta)
-        const restoringTorque = -(naturalOmega * naturalOmega) * Math.sin(item.angle);
-
-        // Fluid aerodynamic drag + rope internal friction: ~0.965 per 1/60s frame
-        // Elegant, controlled damping that settles in 2-3 gentle oscillations
-        const frameDamping = Math.pow(0.965, dt);
-
-        // Symplectic numerical integration (conserves phase smoothness without stutter)
-        item.angularVelocity += restoringTorque * (dt / 60);
-        item.angularVelocity *= frameDamping;
-        item.angle += item.angularVelocity * (dt / 60);
-
-        // Infinitely smooth soft saturation at ~9.2 degrees (0.16 rad) — controlled, subtle amplitude
-        const maxAngle = 0.16;
-        if (Math.abs(item.angle) > maxAngle) {
-          const sign = Math.sign(item.angle);
-          const excess = Math.abs(item.angle) - maxAngle;
-          item.angle = sign * (maxAngle + Math.tanh(excess * 2.5) * 0.02);
-          item.angularVelocity *= 0.84;
-        }
-
-        // Snap cleanly to plumb rest when motion is imperceptible
-        if (Math.abs(item.angle) < 0.0003 && Math.abs(item.angularVelocity) < 0.0008) {
-          item.angle = 0;
-          item.angularVelocity = 0;
-        }
-
-        const theta = item.angle;
-        const currentRestLen = item.restLength;
-
-        // Rope nodes: anchor (0), knot1 (1), knot2 (2), capsule eyelet (3)
-        const p0 = { x: item.anchorX, y: item.anchorY };
-
-        // Subtle, natural catenary sag along swing arc
-        const th1 = theta * 0.38;
-        const len1 = currentRestLen * def.knot1Ratio;
-        const p1 = {
-          x: item.anchorX + Math.sin(th1) * len1,
-          y: item.anchorY + Math.cos(th1) * len1,
-        };
-
-        const th2 = theta * 0.74;
-        const len2 = currentRestLen * def.knot2Ratio;
-        const p2 = {
-          x: item.anchorX + Math.sin(th2) * len2,
-          y: item.anchorY + Math.cos(th2) * len2,
-        };
-
-        const th3 = theta;
-        const p3 = {
-          x: item.anchorX + Math.sin(th3) * currentRestLen,
-          y: item.anchorY + Math.cos(th3) * currentRestLen,
-        };
-
-        item.nodes[0].x = p0.x;
-        item.nodes[0].y = p0.y;
-        item.nodes[1].x = p1.x;
-        item.nodes[1].y = p1.y;
-        item.nodes[2].x = p2.x;
-        item.nodes[2].y = p2.y;
-        item.nodes[3].x = p3.x;
-        item.nodes[3].y = p3.y;
-
-        // GPU DOM update for Capsule Tag with inertia rotation
-        const capEl = capsuleRefs.current[i];
-        if (capEl) {
-          const capX = p3.x;
-          const capY = p3.y;
-          const deg = (theta * 180) / Math.PI;
-          capEl.style.transform = `translate3d(${capX.toFixed(2)}px, ${capY.toFixed(2)}px, 0) rotate(${deg.toFixed(2)}deg) translate(-50%, 0)`;
-        }
-
-        // Continuous smooth cubic Bezier rope path (seamless C^1 catenary curve)
-        const cp1x = p0.x + (p1.x - p0.x) * 1.05;
-        const cp1y = p0.y + (p1.y - p0.y) * 1.05;
-        const cp2x = p3.x - (p3.x - p2.x) * 1.05;
-        const cp2y = p3.y - (p3.y - p2.y) * 1.05;
-        const pathD = `M ${p0.x.toFixed(2)},${p0.y.toFixed(2)} C ${cp1x.toFixed(2)},${cp1y.toFixed(2)} ${cp2x.toFixed(2)},${cp2y.toFixed(2)} ${p3.x.toFixed(2)},${p3.y.toFixed(2)}`;
-
-        const ropePaths = ropePathRefs.current[i];
-        if (ropePaths) {
-          if (ropePaths.shadow) {
-            ropePaths.shadow.setAttribute('d', pathD);
-          }
-          if (ropePaths.core) {
-            ropePaths.core.setAttribute('d', pathD);
-          }
-          if (ropePaths.main) {
-            ropePaths.main.setAttribute('d', pathD);
-          }
-          if (ropePaths.braid) {
-            ropePaths.braid.setAttribute('d', pathD);
-          }
-        }
-
-        // Tangent Orientations for Knots along the curved swinging cord
-        const knotG = knotRefs.current[i];
-        if (knotG) {
-          const angTop = (Math.atan2(p1.y - p0.y, p1.x - p0.x) - Math.PI / 2) * (180 / Math.PI);
-          if (knotG.top) {
-            knotG.top.setAttribute('transform', `translate(${p0.x.toFixed(2)}, ${p0.y.toFixed(2)}) rotate(${angTop.toFixed(2)})`);
-          }
-          const ang1 = (Math.atan2(p2.y - p0.y, p2.x - p0.x) - Math.PI / 2) * (180 / Math.PI);
-          if (knotG.knot1) {
-            knotG.knot1.setAttribute('transform', `translate(${p1.x.toFixed(2)}, ${p1.y.toFixed(2)}) rotate(${ang1.toFixed(2)})`);
-          }
-          const ang2 = (Math.atan2(p3.y - p1.y, p3.x - p1.x) - Math.PI / 2) * (180 / Math.PI);
-          if (knotG.knot2) {
-            knotG.knot2.setAttribute('transform', `translate(${p2.x.toFixed(2)}, ${p2.y.toFixed(2)}) rotate(${ang2.toFixed(2)})`);
-          }
-          const angBtm = (theta * 180) / Math.PI;
-          if (knotG.btm) {
-            knotG.btm.setAttribute('transform', `translate(${p3.x.toFixed(2)}, ${p3.y.toFixed(2)}) rotate(${angBtm.toFixed(2)})`);
-          }
-        }
-      });
-
-      animFrameRef.current = requestAnimationFrame(tick);
-    };
-
-    animFrameRef.current = requestAnimationFrame(tick);
-    return () => {
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-    };
-  }, []);
-
-  /* ─────────────────────────────────────────────────────────────
-     4. Interaction Handlers: Real-Life Rope Pendulum Hover & Navigation
+     4. Real-Life Rope Pendulum Hover Handlers
      ───────────────────────────────────────────────────────────── */
   const handleCapsuleMouseEnter = (
     idx: number,
@@ -647,15 +741,12 @@ export default function HudNav() {
     const item = itemsPhysicsRef.current[idx];
     if (!item) return;
 
-    // Real-life rope pendulum impulse based on cursor entry direction
     const rect = e.currentTarget.getBoundingClientRect();
     const cursorRelativeX = e.clientX - (rect.left + rect.width / 2);
-    // If entering from the left, push toward positive (right); from the right, push toward negative (left)
     const dir = cursorRelativeX < 0 ? 1 : -1;
-
-    // Amplitude tuned for gentle, elegant ~8-10 degree pendulum swing
     const impulse = dir * 1.35;
     item.angularVelocity = Math.max(-1.9, Math.min(1.9, item.angularVelocity * 0.3 + impulse));
+    wakeLoop();
   };
 
   const handleCapsuleMouseMove = (
@@ -664,10 +755,10 @@ export default function HudNav() {
   ) => {
     const item = itemsPhysicsRef.current[idx];
     if (!item) return;
-    // Sweeping mouse cursor across tag imparts gentle micro-nudges
     if (Math.abs(e.movementX) > 1) {
       const sweep = Math.max(-0.25, Math.min(0.25, e.movementX * 0.03));
       item.angularVelocity += sweep;
+      wakeLoop();
     }
   };
 
@@ -705,9 +796,6 @@ export default function HudNav() {
     }, 850);
   };
 
-  /* ─────────────────────────────────────────────────────────────
-     5. Accessibility: Keyboard Focus Feedback
-     ───────────────────────────────────────────────────────────── */
   const handleCapsuleFocus = (id: string) => {
     setActiveId(id);
   };
@@ -716,20 +804,21 @@ export default function HudNav() {
 
   return (
     <>
-      {/* ── DESKTOP SUSPENDED KNOTTED ROPE NAVIGATION (>= 768px) ── */}
+      {/* ── DESKTOP DUAL-MODE NAVIGATION (>= 768px) ── */}
       <div
         ref={containerRef}
-        className="hud-nav-shell hud-desktop-nav"
+        className={`hud-nav-shell hud-desktop-nav ${isHangingMode ? 'is-hanging-mode' : 'is-simple-mode'}`}
         style={{
           width: `${railWidth}px`,
-          height: `${containerHeight}px`,
+          height: isHangingMode ? `${containerHeight}px` : '46px',
+          transition: 'height 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
         }}
       >
         <motion.div
           className="hud-nav-assembly"
           initial={{ y: -60, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
+          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
         >
           {/* Main Mounting Rail Container */}
           <nav
@@ -737,19 +826,57 @@ export default function HudNav() {
             className="hud-nav hud-mounting-rail"
             aria-label="Main Navigation"
           >
-            {/* Centered Brand Logo: KRXN Typography */}
+            {/* Centered Brand Logo: Visible ONLY in Hanging Mode */}
             <a
               href="#hero"
               className="hud-rail-brand"
               onClick={(e) => handleNavClick(e, 'hero')}
               aria-label="KRXN — Return to Home section"
               title="KRXN — Return to Home"
+              style={{
+                opacity: isHangingMode ? 1 : 0,
+                transform: `translate(-50%, -50%) scale(${isHangingMode ? 1 : 0.88})`,
+                pointerEvents: isHangingMode ? 'auto' : 'none',
+              }}
             >
               KRXN
             </a>
 
+            {/* Simple Track: Horizontal Nav Links Visible ONLY on Page 1 (Hero) */}
+            <div
+              className="hud-simple-track"
+              style={{
+                opacity: isHangingMode ? 0 : 1,
+                transform: `scale(${isHangingMode ? 0.94 : 1})`,
+                pointerEvents: isHangingMode ? 'none' : 'auto',
+              }}
+            >
+              <div className="hud-simple-nav-links">
+                {NAV_ITEMS.map((item) => {
+                  const isActive = activeId === item.id;
+                  return (
+                    <a
+                      key={item.id}
+                      href={`#${item.id}`}
+                      className={`hud-simple-item ${isActive ? 'is-active' : ''}`}
+                      onClick={(e) => handleNavClick(e, item.id)}
+                    >
+                      <span className="hud-simple-num">{item.num}</span>
+                      <span className="hud-simple-text">{item.title}</span>
+                    </a>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Precision Mounting Grommets along bottom rail edge */}
-            <div className="hud-rail-anchor-track">
+            <div
+              className="hud-rail-anchor-track"
+              style={{
+                opacity: isHangingMode ? 1 : 0,
+                transition: 'opacity 0.3s ease',
+              }}
+            >
               {anchorCoords.map((pt, i) => {
                 const item = NAV_ITEMS[i];
                 const isActive = activeId === item?.id;
@@ -771,7 +898,14 @@ export default function HudNav() {
           </nav>
 
           {/* Suspended Red Cords & Hanging Navigation Capsules Layer */}
-          <div className="hud-hanging-elements-layer">
+          <div
+            className="hud-hanging-elements-layer"
+            style={{
+              opacity: isHangingMode ? 1 : 0,
+              pointerEvents: isHangingMode ? 'auto' : 'none',
+              transition: 'opacity 0.25s ease',
+            }}
+          >
             {/* SVG Canvas for Physical Red Cords & Tied Knots */}
             <svg
               className="hud-rope-svg"
@@ -780,7 +914,6 @@ export default function HudNav() {
               viewBox={`0 0 ${railWidth} ${containerHeight}`}
             >
               <defs>
-                {/* Deep Crimson Cord Gradient */}
                 <linearGradient id="hud-rope-grad" x1="0%" y1="0%" x2="100%" y2="0%">
                   <stop offset="0%" stopColor="#480509" />
                   <stop offset="28%" stopColor="#870e15" />
@@ -789,18 +922,16 @@ export default function HudNav() {
                   <stop offset="100%" stopColor="#3d0306" />
                 </linearGradient>
 
-                {/* Rope Shadow Filter */}
                 <filter id="hud-rope-shadow" x="-50%" y="-50%" width="200%" height="200%">
                   <feDropShadow dx="0" dy="2.5" stdDeviation="2" floodColor="rgba(0,0,0,0.65)" />
                 </filter>
 
-                {/* Active Cord Crimson Glow */}
                 <filter id="hud-rope-glow" x="-50%" y="-50%" width="200%" height="200%">
                   <feDropShadow dx="0" dy="0" stdDeviation="3.5" floodColor="rgba(229, 9, 20, 0.8)" />
                 </filter>
               </defs>
 
-              {/* Render each knotted cord with pre-rendered resting path */}
+              {/* Render each knotted cord */}
               {NAV_ITEMS.map((item, i) => {
                 const isActive = activeId === item.id;
                 const isHovered = hoveredId === item.id;
@@ -812,7 +943,6 @@ export default function HudNav() {
                     className={`hud-rope-group ${isActive ? 'is-active' : ''} ${isHovered ? 'is-hovered' : ''}`}
                     filter={isActive ? 'url(#hud-rope-glow)' : undefined}
                   >
-                    {/* Layer 1: Ambient Drop Shadow */}
                     <path
                       ref={(el) => {
                         if (!ropePathRefs.current[i]) ropePathRefs.current[i] = {} as any;
@@ -824,9 +954,9 @@ export default function HudNav() {
                       strokeWidth="4.5"
                       strokeLinecap="round"
                       filter="url(#hud-rope-shadow)"
+                      style={{ opacity: 0 }}
                     />
 
-                    {/* Layer 2: Deep Core Dark Cord */}
                     <path
                       ref={(el) => {
                         if (!ropePathRefs.current[i]) ropePathRefs.current[i] = {} as any;
@@ -837,9 +967,9 @@ export default function HudNav() {
                       stroke="#3d0306"
                       strokeWidth="2.8"
                       strokeLinecap="round"
+                      style={{ opacity: 0 }}
                     />
 
-                    {/* Layer 3: Main Rich Crimson Body */}
                     <path
                       ref={(el) => {
                         if (!ropePathRefs.current[i]) ropePathRefs.current[i] = {} as any;
@@ -850,9 +980,9 @@ export default function HudNav() {
                       stroke="url(#hud-rope-grad)"
                       strokeWidth="2.2"
                       strokeLinecap="round"
+                      style={{ opacity: 0 }}
                     />
 
-                    {/* Layer 4: Braided Fiber Highlight Thread */}
                     <path
                       ref={(el) => {
                         if (!ropePathRefs.current[i]) ropePathRefs.current[i] = {} as any;
@@ -865,49 +995,50 @@ export default function HudNav() {
                       strokeDasharray="2.5 3.5"
                       strokeLinecap="round"
                       opacity={isActive || isHovered ? 0.95 : 0.72}
+                      style={{ opacity: 0 }}
                     />
 
-                    {/* Tied Knots Graphics with pre-rendered resting transforms */}
-                    {/* Knot 0: Anchor eyelet hitch knot */}
+                    {/* Tied Knots */}
                     <g
                       ref={(el) => {
                         if (!knotRefs.current[i]) knotRefs.current[i] = {} as any;
                         knotRefs.current[i].top = el;
                       }}
                       transform={init.knotTopTransform}
+                      style={{ opacity: 0 }}
                     >
                       <RopeKnotSVG type="anchor" isActive={isActive} />
                     </g>
 
-                    {/* Knot 1: Upper handmade cinch knot */}
                     <g
                       ref={(el) => {
                         if (!knotRefs.current[i]) knotRefs.current[i] = {} as any;
                         knotRefs.current[i].knot1 = el;
                       }}
                       transform={init.knot1Transform}
+                      style={{ opacity: 0 }}
                     >
                       <RopeKnotSVG type="intermediate" isActive={isActive} />
                     </g>
 
-                    {/* Knot 2: Lower handmade cinch knot */}
                     <g
                       ref={(el) => {
                         if (!knotRefs.current[i]) knotRefs.current[i] = {} as any;
                         knotRefs.current[i].knot2 = el;
                       }}
                       transform={init.knot2Transform}
+                      style={{ opacity: 0 }}
                     >
                       <RopeKnotSVG type="intermediate" isActive={isActive} />
                     </g>
 
-                    {/* Knot 3: Capsule connection knot */}
                     <g
                       ref={(el) => {
                         if (!knotRefs.current[i]) knotRefs.current[i] = {} as any;
                         knotRefs.current[i].btm = el;
                       }}
                       transform={init.knotBtmTransform}
+                      style={{ opacity: 0 }}
                     >
                       <RopeKnotSVG type="capsule" isActive={isActive} />
                     </g>
@@ -934,6 +1065,8 @@ export default function HudNav() {
                     className={`hud-capsule ${isActive ? 'is-active' : ''} ${isHovered ? 'is-hovered' : ''}`}
                     style={{
                       transform: init.capsuleTransform,
+                      opacity: 0,
+                      pointerEvents: 'none',
                     }}
                     aria-current={isActive ? 'page' : undefined}
                     onClick={(e) => handleCapsuleClick(e, item.id)}
@@ -942,7 +1075,6 @@ export default function HudNav() {
                     onMouseLeave={handleCapsuleMouseLeave}
                     onFocus={() => handleCapsuleFocus(item.id)}
                   >
-                    {/* Physical Attachment Eyelet Grommet at top center */}
                     <span className="hud-capsule-grommet">
                       <span className="hud-capsule-grommet-outer" />
                       <span className="hud-capsule-grommet-hole" />
@@ -1043,7 +1175,6 @@ export default function HudNav() {
                       transition={{ delay: 0.05 + idx * 0.05, duration: 0.3 }}
                       whileTap={{ scale: 0.97, x: 4 }}
                     >
-                      {/* Suspended Red Cord Graphic Accent on Mobile */}
                       <span className="hud-mobile-rope-hang" aria-hidden="true">
                         <span className="hud-mobile-knot-pip" />
                         <span className="hud-mobile-cord-line" />

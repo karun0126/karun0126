@@ -57,69 +57,68 @@ export default function CursorTrail() {
 
     const { aboutBits, heroBits, postersBits } = lumData;
 
-    // High-precision background luminance detection under cursor
-    const isDarkAt = (clientX: number, clientY: number): boolean => {
-      // 1. Check if a dark modal or lightbox is open
-      if (document.querySelector('.lightbox-backdrop, [role="dialog"], .modal-open')) {
-        return true;
-      }
+    // Cache section layout bounding boxes to eliminate forced synchronous reflows
+    let cachedSections: Record<string, { top: number; bottom: number; left: number; width: number; height: number }> = {};
+    let lastCacheUpdate = 0;
 
-      // 2. Check DOM elements directly under pointer (e.g. HUD nav, dark buttons)
-      const el = document.elementFromPoint(clientX, clientY);
-      if (el) {
-        if (el.closest('.hud-nav, .back-to-top, .hero-hand-group, #lightbox-modal')) {
-          return true;
+    const updateSectionCache = () => {
+      const ids = ['case-study', 'sketchbook', 'about', 'posters', 'hero'];
+      for (const id of ids) {
+        const el = document.getElementById(id);
+        if (el) {
+          const r = el.getBoundingClientRect();
+          cachedSections[id] = { top: r.top, bottom: r.bottom, left: r.left, width: r.width, height: r.height };
         }
       }
-
-      // 3. Section checks
-      const caseStudy = document.getElementById('case-study');
-      if (caseStudy) {
-        const rect = caseStudy.getBoundingClientRect();
-        if (clientY >= rect.top && clientY <= rect.bottom) return true;
-      }
-
-      const sketchbook = document.getElementById('sketchbook');
-      if (sketchbook) {
-        const rect = sketchbook.getBoundingClientRect();
-        if (clientY >= rect.top && clientY <= rect.bottom) return true;
-      }
-
       const footer = document.querySelector('footer');
       if (footer) {
-        const rect = footer.getBoundingClientRect();
-        if (clientY >= rect.top) return true;
+        const r = footer.getBoundingClientRect();
+        cachedSections['footer'] = { top: r.top, bottom: r.bottom, left: r.left, width: r.width, height: r.height };
+      }
+    };
+
+    updateSectionCache();
+    window.addEventListener('scroll', updateSectionCache, { passive: true });
+    window.addEventListener('resize', updateSectionCache, { passive: true });
+
+    // High-performance background luminance detection under cursor (zero layout thrashing)
+    const isDarkAt = (clientX: number, clientY: number): boolean => {
+      const now = performance.now();
+      if (now - lastCacheUpdate > 250) {
+        lastCacheUpdate = now;
+        updateSectionCache();
       }
 
-      // 4. Detailed bitmask lookup for collage sections
-      const about = document.getElementById('about');
-      if (about) {
-        const rect = about.getBoundingClientRect();
-        if (clientY >= rect.top && clientY <= rect.bottom) {
-          const u = Math.max(0, Math.min(31, Math.floor(((clientX - rect.left) / rect.width) * 32)));
-          const v = Math.max(0, Math.min(17, Math.floor(((clientY - rect.top) / rect.height) * 18)));
-          return aboutBits[v * 32 + u] === '1';
-        }
+      // Check section bounding boxes from cache
+      const cs = cachedSections['case-study'];
+      if (cs && clientY >= cs.top && clientY <= cs.bottom) return true;
+
+      const sb = cachedSections['sketchbook'];
+      if (sb && clientY >= sb.top && clientY <= sb.bottom) return true;
+
+      const ft = cachedSections['footer'];
+      if (ft && clientY >= ft.top) return true;
+
+      // Detailed bitmask lookup for collage sections
+      const ab = cachedSections['about'];
+      if (ab && clientY >= ab.top && clientY <= ab.bottom && ab.width > 0 && ab.height > 0) {
+        const u = Math.max(0, Math.min(31, Math.floor(((clientX - ab.left) / ab.width) * 32)));
+        const v = Math.max(0, Math.min(17, Math.floor(((clientY - ab.top) / ab.height) * 18)));
+        return aboutBits[v * 32 + u] === '1';
       }
 
-      const posters = document.getElementById('posters');
-      if (posters) {
-        const rect = posters.getBoundingClientRect();
-        if (clientY >= rect.top && clientY <= rect.bottom) {
-          const u = Math.max(0, Math.min(31, Math.floor(((clientX - rect.left) / rect.width) * 32)));
-          const v = Math.max(0, Math.min(35, Math.floor(((clientY - rect.top) / rect.height) * 36)));
-          return postersBits[v * 32 + u] === '1';
-        }
+      const po = cachedSections['posters'];
+      if (po && clientY >= po.top && clientY <= po.bottom && po.width > 0 && po.height > 0) {
+        const u = Math.max(0, Math.min(31, Math.floor(((clientX - po.left) / po.width) * 32)));
+        const v = Math.max(0, Math.min(35, Math.floor(((clientY - po.top) / po.height) * 36)));
+        return postersBits[v * 32 + u] === '1';
       }
 
-      const hero = document.getElementById('hero');
-      if (hero) {
-        const rect = hero.getBoundingClientRect();
-        if (clientY >= rect.top && clientY <= rect.bottom) {
-          const u = Math.max(0, Math.min(31, Math.floor(((clientX - rect.left) / rect.width) * 32)));
-          const v = Math.max(0, Math.min(17, Math.floor(((clientY - rect.top) / rect.height) * 18)));
-          return heroBits[v * 32 + u] === '1';
-        }
+      const he = cachedSections['hero'];
+      if (he && clientY >= he.top && clientY <= he.bottom && he.width > 0 && he.height > 0) {
+        const u = Math.max(0, Math.min(31, Math.floor(((clientX - he.left) / he.width) * 32)));
+        const v = Math.max(0, Math.min(17, Math.floor(((clientY - he.top) / he.height) * 18)));
+        return heroBits[v * 32 + u] === '1';
       }
 
       return true;
@@ -320,6 +319,8 @@ export default function CursorTrail() {
 
     return () => {
       window.removeEventListener('resize', resize);
+      window.removeEventListener('scroll', updateSectionCache);
+      window.removeEventListener('resize', updateSectionCache);
       window.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseleave', onMouseLeave);
       document.removeEventListener('mouseenter', onMouseEnter);
