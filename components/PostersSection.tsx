@@ -262,18 +262,29 @@ export default function PostersSection({
   const sectionRef = useRef<HTMLElement>(null);
   const shouldReduceMotion = useReducedMotion();
 
-  /* Same scroll-driven star rotation as AboutSection */
+  /* Same scroll-driven star rotation as AboutSection (direct hardware-accelerated transform, zero spring lag) */
   const { scrollY } = useScroll();
-  const rawRotate = useTransform(scrollY, (y) => (shouldReduceMotion ? 0 : y * 0.45));
-  const starRotate = useSpring(rawRotate, { stiffness: 140, damping: 24, mass: 0.15 });
+  const starRotate = useTransform(scrollY, (y) => (shouldReduceMotion ? 0 : y * 0.45));
 
   useEffect(() => {
     setMounted(true);
-    // Preload all high-res posters in background so they are ready instantly
-    POSTERS.forEach((poster) => {
-      const img = new Image();
-      img.src = poster.highres;
-    });
+    // Defer preloading high-res modal posters until browser has idle time (keeps initial load queue completely clear)
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      const idleId = (window as unknown as { requestIdleCallback: (cb: () => void, opts: { timeout: number }) => number }).requestIdleCallback(
+        () => {
+          POSTERS.forEach((poster) => {
+            const img = new Image();
+            img.src = poster.highres;
+          });
+        },
+        { timeout: 4000 }
+      );
+      return () => {
+        if ('cancelIdleCallback' in window) {
+          (window as unknown as { cancelIdleCallback: (id: number) => void }).cancelIdleCallback(idleId);
+        }
+      };
+    }
   }, []);
 
   // Measure exact resting bounding rect from the stationary outer container
@@ -346,6 +357,7 @@ export default function PostersSection({
       id="posters"
       ref={sectionRef}
       className="slide-frame"
+      style={{ backgroundColor: '#1c1c1c' }}
       aria-label="Poster Designs Showcase"
     >
       <Stage baseHeight={2160}>
@@ -370,7 +382,8 @@ export default function PostersSection({
           className="stage-img"
           src="/images/posters-slice.jpg"
           alt="Poster Designs — Curated series of 6 cinematic posters"
-          loading="lazy"
+          style={{ height: 'calc(100% + 4px)', objectFit: 'cover' }}
+          loading="eager"
           decoding="async"
         />
 
@@ -445,10 +458,30 @@ export default function PostersSection({
                 ) : (
                   <span className="hover-tag">{poster.tag}</span>
                 )}
+
+                {/* Explicit anchor element for scroll-driven crack starting point */}
+                {poster.id === '005' && (
+                  <div
+                    id="last-middle-poster-anchor"
+                    style={{
+                      position: 'absolute',
+                      left: '50%',
+                      bottom: '0px',
+                      width: '2px',
+                      height: '2px',
+                      pointerEvents: 'none',
+                      opacity: 0,
+                      transform: 'translateX(-50%)',
+                    }}
+                    aria-hidden="true"
+                  />
+                )}
               </div>
             </PendulumCard>
           );
         })}
+
+
       </Stage>
 
       {/* Mobile Poster Quick Selector Strip (Visible only on mobile devices) */}

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import CursorTrail from '@/components/CursorTrail';
+import { RedSunTransitionProvider } from '@/components/RedSunTransition';
 
 export const metadata: Metadata = {
   title: 'Karun Pandey — Graphic Designer & Traditional Artist Portfolio',
@@ -37,11 +38,19 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <link rel="preload" as="image" href="/images/hero-clean-bg.jpg" fetchPriority="high" />
+        <link rel="preload" as="image" href="/images/hand-posters-collage.webp" />
+        <link rel="preload" as="image" href="/images/about-bg-clean.webp" />
+        <link rel="preload" as="image" href="/images/about-text-ink.webp" />
+        <link rel="preload" as="image" href="/images/posters-slice.jpg" />
+        <link rel="preload" as="image" href="/images/case-study-dome-figma.webp" />
       </head>
       <body>
         <CursorTrail />
-        {children}
+        <RedSunTransitionProvider>
+          {children}
+        </RedSunTransitionProvider>
       </body>
     </html>
   );
 }
+

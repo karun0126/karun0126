@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" fill="none">
+  <!-- Top-right long blade spike -->
+  <polygon points="200,200 300,40 310,70" fill="url(#blade-grad-1)" opacity="0.92"/>
+  <polygon points="200,200 310,70 290,80" fill="url(#blade-grad-light)" opacity="0.6"/>
+  <!-- Top-right secondary blade -->
+  <polygon points="200,200 340,80 350,115" fill="url(#blade-grad-1)" opacity="0.85"/>
+  <polygon points="200,200 350,115 330,120" fill="url(#blade-grad-light)" opacity="0.5"/>
+  <!-- Right small blade -->
+  <polygon points="200,200 370,170 360,195" fill="url(#blade-grad-1)" opacity="0.7"/>
+  <!-- Bottom small blade -->
+  <polygon points="200,200 260,360 245,345" fill="url(#blade-grad-1)" opacity="0.65"/>
+  <polygon points="200,200 245,345 235,365" fill="url(#blade-grad-light)" opacity="0.4"/>
+  <!-- Red accent lines -->
+  <line x1="200" y1="200" x2="308" y2="45" stroke="#cc1a1a" stroke-width="1.2" opacity="0.9"/>
+  <line x1="200" y1="200" x2="345" y2="83" stroke="#cc1a1a" stroke-width="0.9" opacity="0.7"/>
+  <line x1="200" y1="200" x2="255" y2="355" stroke="#cc1a1a" stroke-width="0.8" opacity="0.6"/>
+  <defs>
+    <linearGradient id="blade-grad-1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e8e8e8" stop-opacity="0.95"/>
+      <stop offset="60%" stop-color="#c0c0c0" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#888" stop-opacity="0.2"/>
+    </linearGradient>
+    <linearGradient id="blade-grad-light" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#aaa" stop-opacity="0.1"/>
+    </linearGradient>
+  </defs>
+</svg>

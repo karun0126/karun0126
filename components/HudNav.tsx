@@ -496,6 +496,23 @@ export default function HudNav() {
      ───────────────────────────────────────────────────────────── */
   useEffect(() => {
     let ticking = false;
+    let cachedOffsets: Record<string, { top: number; bottom: number }> = {};
+
+    const measureOffsets = () => {
+      const curScrollY = window.scrollY;
+      const nextOffsets: Record<string, { top: number; bottom: number }> = {};
+      for (const item of NAV_ITEMS) {
+        const el = document.getElementById(item.id);
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          nextOffsets[item.id] = {
+            top: rect.top + curScrollY,
+            bottom: rect.bottom + curScrollY,
+          };
+        }
+      }
+      cachedOffsets = nextOffsets;
+    };
 
     const updateActiveSectionAndMode = () => {
       const scrollY = window.scrollY;
@@ -524,7 +541,7 @@ export default function HudNav() {
         }
       }
 
-      // Active Section Spy
+      // Active Section Spy (zero layout reflows, arithmetic detection)
       if (scrollY < 120) {
         setActiveId('hero');
         return;
@@ -538,12 +555,12 @@ export default function HudNav() {
       }
 
       const focalLine = windowHeight * 0.35;
+      const targetDocY = scrollY + focalLine;
 
       for (const item of NAV_ITEMS) {
-        const el = document.getElementById(item.id);
-        if (!el) continue;
-        const rect = el.getBoundingClientRect();
-        if (rect.top <= focalLine && rect.bottom > focalLine) {
+        const off = cachedOffsets[item.id];
+        if (!off) continue;
+        if (targetDocY >= off.top && targetDocY < off.bottom) {
           setActiveId(item.id);
           return;
         }
@@ -552,10 +569,9 @@ export default function HudNav() {
       let closestId = NAV_ITEMS[0].id;
       let minDistance = Infinity;
       for (const item of NAV_ITEMS) {
-        const el = document.getElementById(item.id);
-        if (!el) continue;
-        const rect = el.getBoundingClientRect();
-        const dist = Math.abs(rect.top - focalLine);
+        const off = cachedOffsets[item.id];
+        if (!off) continue;
+        const dist = Math.abs(off.top - targetDocY);
         if (dist < minDistance) {
           minDistance = dist;
           closestId = item.id;
@@ -563,6 +579,9 @@ export default function HudNav() {
       }
       setActiveId(closestId);
     };
+
+    measureOffsets();
+    setTimeout(measureOffsets, 600);
 
     const handleScroll = () => {
       if (isManualScrollRef.current) return;
@@ -575,10 +594,19 @@ export default function HudNav() {
       }
     };
 
+    let resizeTimer: NodeJS.Timeout | null = null;
+    const handleResize = () => {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        measureOffsets();
+        updateActiveSectionAndMode();
+      }, 150);
+    };
+
     updateActiveSectionAndMode();
 
     window.addEventListener('scroll', handleScroll, { passive: true });
-    window.addEventListener('resize', handleScroll, { passive: true });
+    window.addEventListener('resize', handleResize, { passive: true });
 
     const handleUserInteraction = () => {
       if (isManualScrollRef.current) {
@@ -595,7 +623,8 @@ export default function HudNav() {
 
     return () => {
       window.removeEventListener('scroll', handleScroll);
-      window.removeEventListener('resize', handleScroll);
+      window.removeEventListener('resize', handleResize);
+      if (resizeTimer) clearTimeout(resizeTimer);
       window.removeEventListener('wheel', handleUserInteraction);
       window.removeEventListener('touchmove', handleUserInteraction);
       if (scrollTimeoutRef.current) {

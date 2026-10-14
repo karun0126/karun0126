@@ -12,18 +12,11 @@ export default function AboutSection() {
   const [imgLoaded, setImgLoaded] = useState(false);
   const shouldReduceMotion = useReducedMotion();
 
-  // Scroll tracking for the rolling star
+  // Scroll tracking for the rolling star (direct hardware-accelerated transform, zero spring lag)
   const { scrollY } = useScroll();
-  const rawRotate = useTransform(scrollY, (y) => (shouldReduceMotion ? 0 : y * 0.45));
-  const rotate = useSpring(rawRotate, {
-    stiffness: 140,
-    damping: 24,
-    mass: 0.15,
-  });
+  const rotate = useTransform(scrollY, (y) => (shouldReduceMotion ? 0 : y * 0.45));
 
   // Scroll tracking for ink particles reveal:
-  // Starts a little earlier as user scrolls toward About ('start 105%')
-  // Fully appears when the full page comes on screen ('start start')
   const { scrollYProgress } = useScroll({
     target: sectionRef,
     offset: ['start 105%', 'start start'],
@@ -36,6 +29,8 @@ export default function AboutSection() {
     restDelta: 0.001,
   });
 
+  const hasDrawnFullRef = useRef(false);
+
   // Render particle ink reveal frame onto the 1400x1420 retina canvas
   const renderFrame = useCallback(
     (prog: number) => {
@@ -47,23 +42,33 @@ export default function AboutSection() {
       const w = 1400;
       const h = 1420;
 
-      ctx.clearRect(0, 0, w, h);
-
-      // If motion reduced or scrolled to full view (95%+), show exact sharp typography
       const isMobileDevice = typeof window !== 'undefined' && window.innerWidth < 768;
       const fullThreshold = isMobileDevice ? 0.75 : 0.95;
 
-      if (shouldReduceMotion || prog >= fullThreshold) {
-        if (inkImgRef.current) {
-          ctx.drawImage(inkImgRef.current, 0, 0, w, h);
+      // When fully revealed or motion reduced, draw once and freeze canvas rendering completely
+      if (shouldReduceMotion || isMobileDevice || prog >= fullThreshold) {
+        if (!hasDrawnFullRef.current) {
+          if (inkImgRef.current && inkImgRef.current.complete && inkImgRef.current.naturalWidth > 0) {
+            hasDrawnFullRef.current = true;
+            ctx.clearRect(0, 0, w, h);
+            ctx.drawImage(inkImgRef.current, 0, 0, w, h);
+          }
         }
         return;
       }
 
+      // Reset freeze state when scrolled back up
+      if (prog < fullThreshold - 0.08) {
+        hasDrawnFullRef.current = false;
+      }
+
       // When barely entering (<= 1%), canvas is clean
       if (prog <= 0.01) {
+        ctx.clearRect(0, 0, w, h);
         return;
       }
+
+      ctx.clearRect(0, 0, w, h);
 
       // Draw particle mask
       ctx.save();
@@ -72,14 +77,13 @@ export default function AboutSection() {
       const spreadWindow = 0.22;
       const count = particlesData.length;
 
-      for (let i = 0; i < count; i++) {
+      for (let i = 0; i < count; i += 2) {
         const pt = particlesData[i];
         const birth = pt[2];
-        if (birth > prog) break; // Sorted by birth for maximum performance
+        if (birth > prog) break;
 
         const progressSinceBirth = (prog - birth) / spreadWindow;
         const t = Math.min(1, Math.max(0, progressSinceBirth));
-        // Dot starts as tiny speck (~1px) and spreads organically to maxR
         const r = 1.0 + (pt[3] - 1.0) * Math.sqrt(t);
 
         ctx.moveTo(pt[0] + r, pt[1]);
@@ -114,11 +118,13 @@ export default function AboutSection() {
     img.src = '/images/about-text-ink.webp';
     if (img.complete) {
       inkImgRef.current = img;
+      hasDrawnFullRef.current = false;
       setImgLoaded(true);
       renderFrame(smoothProgress.get());
     } else {
       img.onload = () => {
         inkImgRef.current = img;
+        hasDrawnFullRef.current = false;
         setImgLoaded(true);
         renderFrame(smoothProgress.get());
       };
@@ -132,7 +138,6 @@ export default function AboutSection() {
     let rafId: number | null = null;
     let latestProg = smoothProgress.get();
 
-    // Initial render
     renderFrame(latestProg);
 
     const unsubscribe = smoothProgress.on('change', (val) => {
@@ -165,7 +170,7 @@ export default function AboutSection() {
           className="stage-img"
           src="/images/about-bg-clean.webp"
           alt="About Me — collage with torn paper, vintage film strips, bio, tools and what I do"
-          loading="lazy"
+          loading="eager"
           decoding="async"
         />
 

@@ -54,14 +54,14 @@ export default function HeroSection() {
     // Master Timeline: Animate Hand + Posters + Black Curtain smoothly from Left -> Right
     // Stops exactly at resting position x: 0 (left: 1137px), revealing the home page
     const tl = gsap.timeline({
-      delay: 0.15,
+      delay: 0.02,
       onComplete: () => {
         setIsIntroComplete(true);
         document.body.style.overflow = originalOverflow;
         if (skipBtnRef.current) {
           gsap.to(skipBtnRef.current, {
             opacity: 0,
-            duration: 0.3,
+            duration: 0.25,
             pointerEvents: 'none',
           });
         }
@@ -74,7 +74,7 @@ export default function HeroSection() {
       movingGroupRef.current,
       {
         x: 0,
-        duration: 2.1,
+        duration: 1.2,
         ease: 'cinematic',
       },
       0

@@ -57,67 +57,80 @@ export default function CursorTrail() {
 
     const { aboutBits, heroBits, postersBits } = lumData;
 
-    // Cache section layout bounding boxes to eliminate forced synchronous reflows
-    let cachedSections: Record<string, { top: number; bottom: number; left: number; width: number; height: number }> = {};
-    let lastCacheUpdate = 0;
+    // Document-space section bounds (calculated on mount & debounced resize, ZERO scroll reflows)
+    let cachedDocSections: Record<string, { top: number; bottom: number; left: number; width: number; height: number }> = {};
 
-    const updateSectionCache = () => {
+    const updateDocSectionCache = () => {
+      const scrollY = window.scrollY;
       const ids = ['case-study', 'sketchbook', 'about', 'posters', 'hero'];
       for (const id of ids) {
         const el = document.getElementById(id);
         if (el) {
           const r = el.getBoundingClientRect();
-          cachedSections[id] = { top: r.top, bottom: r.bottom, left: r.left, width: r.width, height: r.height };
+          cachedDocSections[id] = {
+            top: r.top + scrollY,
+            bottom: r.bottom + scrollY,
+            left: r.left,
+            width: r.width,
+            height: r.height,
+          };
         }
       }
       const footer = document.querySelector('footer');
       if (footer) {
         const r = footer.getBoundingClientRect();
-        cachedSections['footer'] = { top: r.top, bottom: r.bottom, left: r.left, width: r.width, height: r.height };
+        cachedDocSections['footer'] = {
+          top: r.top + scrollY,
+          bottom: r.bottom + scrollY,
+          left: r.left,
+          width: r.width,
+          height: r.height,
+        };
       }
     };
 
-    updateSectionCache();
-    window.addEventListener('scroll', updateSectionCache, { passive: true });
-    window.addEventListener('resize', updateSectionCache, { passive: true });
+    updateDocSectionCache();
+    setTimeout(updateDocSectionCache, 500);
+    let resizeTimer: NodeJS.Timeout | null = null;
+    const debouncedMeasure = () => {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(updateDocSectionCache, 150);
+    };
+    window.addEventListener('resize', debouncedMeasure, { passive: true });
 
-    // High-performance background luminance detection under cursor (zero layout thrashing)
+    // High-performance background luminance detection under cursor (zero layout thrashing, pure arithmetic)
     const isDarkAt = (clientX: number, clientY: number): boolean => {
-      const now = performance.now();
-      if (now - lastCacheUpdate > 250) {
-        lastCacheUpdate = now;
-        updateSectionCache();
-      }
+      const docY = clientY + window.scrollY;
 
       // Check section bounding boxes from cache
-      const cs = cachedSections['case-study'];
-      if (cs && clientY >= cs.top && clientY <= cs.bottom) return true;
+      const cs = cachedDocSections['case-study'];
+      if (cs && docY >= cs.top && docY <= cs.bottom) return true;
 
-      const sb = cachedSections['sketchbook'];
-      if (sb && clientY >= sb.top && clientY <= sb.bottom) return true;
+      const sb = cachedDocSections['sketchbook'];
+      if (sb && docY >= sb.top && docY <= sb.bottom) return true;
 
-      const ft = cachedSections['footer'];
-      if (ft && clientY >= ft.top) return true;
+      const ft = cachedDocSections['footer'];
+      if (ft && docY >= ft.top) return true;
 
       // Detailed bitmask lookup for collage sections
-      const ab = cachedSections['about'];
-      if (ab && clientY >= ab.top && clientY <= ab.bottom && ab.width > 0 && ab.height > 0) {
+      const ab = cachedDocSections['about'];
+      if (ab && docY >= ab.top && docY <= ab.bottom && ab.width > 0 && ab.height > 0) {
         const u = Math.max(0, Math.min(31, Math.floor(((clientX - ab.left) / ab.width) * 32)));
-        const v = Math.max(0, Math.min(17, Math.floor(((clientY - ab.top) / ab.height) * 18)));
+        const v = Math.max(0, Math.min(17, Math.floor(((docY - ab.top) / ab.height) * 18)));
         return aboutBits[v * 32 + u] === '1';
       }
 
-      const po = cachedSections['posters'];
-      if (po && clientY >= po.top && clientY <= po.bottom && po.width > 0 && po.height > 0) {
+      const po = cachedDocSections['posters'];
+      if (po && docY >= po.top && docY <= po.bottom && po.width > 0 && po.height > 0) {
         const u = Math.max(0, Math.min(31, Math.floor(((clientX - po.left) / po.width) * 32)));
-        const v = Math.max(0, Math.min(35, Math.floor(((clientY - po.top) / po.height) * 36)));
+        const v = Math.max(0, Math.min(35, Math.floor(((docY - po.top) / po.height) * 36)));
         return postersBits[v * 32 + u] === '1';
       }
 
-      const he = cachedSections['hero'];
-      if (he && clientY >= he.top && clientY <= he.bottom && he.width > 0 && he.height > 0) {
+      const he = cachedDocSections['hero'];
+      if (he && docY >= he.top && docY <= he.bottom && he.width > 0 && he.height > 0) {
         const u = Math.max(0, Math.min(31, Math.floor(((clientX - he.left) / he.width) * 32)));
-        const v = Math.max(0, Math.min(17, Math.floor(((clientY - he.top) / he.height) * 18)));
+        const v = Math.max(0, Math.min(17, Math.floor(((docY - he.top) / he.height) * 18)));
         return heroBits[v * 32 + u] === '1';
       }
 
@@ -196,6 +209,13 @@ export default function CursorTrail() {
     document.addEventListener('mouseenter', onMouseEnter);
 
     const render = () => {
+      // Optimization: when full-screen page transition is active, pause canvas rendering for 120 FPS
+      if (document.body.classList.contains('is-transitioning')) {
+        ctx.clearRect(0, 0, width, height);
+        rafId = requestAnimationFrame(render);
+        return;
+      }
+
       ctx.clearRect(0, 0, width, height);
 
       if (!hasMoved) {
@@ -319,8 +339,8 @@ export default function CursorTrail() {
 
     return () => {
       window.removeEventListener('resize', resize);
-      window.removeEventListener('scroll', updateSectionCache);
-      window.removeEventListener('resize', updateSectionCache);
+      window.removeEventListener('resize', debouncedMeasure);
+      if (resizeTimer) clearTimeout(resizeTimer);
       window.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseleave', onMouseLeave);
       document.removeEventListener('mouseenter', onMouseEnter);

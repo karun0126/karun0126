@@ -7,7 +7,7 @@ import BackToTop from '@/components/BackToTop';
 import HeroSection from '@/components/HeroSection';
 import AboutSection from '@/components/AboutSection';
 import PostersSection, { POSTERS } from '@/components/PostersSection';
-import CaseStudySection from '@/components/CaseStudySection';
+import CaseStudyShowcaseSection from '@/components/CaseStudyShowcaseSection';
 import SketchbookSection from '@/components/SketchbookSection';
 import LightboxModal from '@/components/LightboxModal';
 import Footer from '@/components/Footer';
@@ -92,8 +92,8 @@ export default function Home() {
           isModalOpen={lightbox.isOpen}
         />
 
-        {/* 03: Dead Signal Case Study */}
-        <CaseStudySection />
+        {/* 03: Case Study Showcase (Dead Signal & Nova Music Campaign with Warped Red Dome) */}
+        <CaseStudyShowcaseSection />
 
         {/* 04: Sketchbook & Original Works */}
         <SketchbookSection />
