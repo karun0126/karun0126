@@ -32,7 +32,7 @@ export function useRedSunTransition() {
 const CRITICAL_ROUTE_ASSETS: Record<string, string[]> = {
   '/case-study/dead-signal': ['/images/dead-signal-01-intro.webp'],
   '/case-study/album-design': ['/images/nova-desktop-4.webp'],
-  '/': ['/images/hero-clean-bg.jpg', '/images/case-study-desktop-33-bg.png'],
+  '/': ['/images/hero-clean-bg.jpg', '/images/case-study-desktop-33-bg.webp'],
 };
 
 function preloadImages(urls: string[]): Promise<void> {

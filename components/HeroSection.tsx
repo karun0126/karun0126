@@ -22,14 +22,23 @@ export default function HeroSection() {
   const tlRef = useRef<gsap.core.Timeline | null>(null);
 
   useEffect(() => {
-    // Check reduced motion preference
+    // Check reduced motion preference or previous visit in session
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (prefersReducedMotion) {
+    const alreadySeen = typeof window !== 'undefined' && sessionStorage.getItem('hero_intro_seen') === '1';
+
+    if (prefersReducedMotion || alreadySeen) {
       if (movingGroupRef.current) {
         gsap.set(movingGroupRef.current, { x: 0 });
+        movingGroupRef.current.style.willChange = 'auto';
       }
       setIsIntroComplete(true);
       return;
+    }
+
+    try {
+      sessionStorage.setItem('hero_intro_seen', '1');
+    } catch {
+      // sessionStorage may be disabled in private mode
     }
 
     // Lock body scroll during the entrance animation
@@ -37,8 +46,6 @@ export default function HeroSection() {
     document.body.style.overflow = 'hidden';
 
     // Start position: -1950px in 1920x1080 stage coordinates
-    // At -1950px, the hand is completely off-screen left (-813px)
-    // and the black curtain attached at 780px covers from -33px to 3167px (entire 1920px stage is solid black)
     const startX = -1950;
 
     if (movingGroupRef.current) {
@@ -64,7 +71,7 @@ export default function HeroSection() {
         if (skipBtnRef.current) {
           gsap.to(skipBtnRef.current, {
             opacity: 0,
-            duration: 0.25,
+            duration: 0.2,
             pointerEvents: 'none',
           });
         }
@@ -77,21 +84,30 @@ export default function HeroSection() {
       movingGroupRef.current,
       {
         x: 0,
-        duration: 1.2,
+        duration: 0.85,
         ease: 'cinematic',
       },
       0
     );
 
-    // Keyboard shortcut to skip intro (Escape or Space)
+    // Immediately finish and unlock if user attempts to scroll or press key
+    const handleImmediateFinish = () => {
+      tl.progress(1);
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' || e.key === ' ') {
+      if (e.key === 'Escape' || e.key === ' ' || e.key === 'ArrowDown') {
         tl.progress(1);
       }
     };
+
+    window.addEventListener('wheel', handleImmediateFinish, { once: true, passive: true });
+    window.addEventListener('touchmove', handleImmediateFinish, { once: true, passive: true });
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
+      window.removeEventListener('wheel', handleImmediateFinish);
+      window.removeEventListener('touchmove', handleImmediateFinish);
       window.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = originalOverflow;
       tl.kill();

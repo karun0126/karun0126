@@ -373,10 +373,10 @@ export default function PostersSection({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           className="stage-img"
-          src="/images/posters-slice.jpg"
+          src="/images/posters-slice.webp"
           alt="Poster Designs — Curated series of 6 cinematic posters"
           style={{ height: 'calc(100% + 4px)', objectFit: 'cover' }}
-          loading="eager"
+          loading="lazy"
           decoding="async"
         />
 
@@ -593,7 +593,7 @@ export default function PostersSection({
                 style={{
                   position: 'absolute',
                   inset: 0,
-                  backgroundImage: "url('/images/posters-slice.jpg')",
+                  backgroundImage: "url('/images/posters-slice.webp')",
                   backgroundSize: `${1920 * activePoster.scale}px ${2160 * activePoster.scale}px`,
                   backgroundPosition: `-${activePoster.cardBg.x * activePoster.scale}px -${activePoster.cardBg.y * activePoster.scale}px`,
                   backgroundRepeat: 'no-repeat',

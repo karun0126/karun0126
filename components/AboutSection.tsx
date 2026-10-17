@@ -3,14 +3,40 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, useScroll, useTransform, useSpring, useReducedMotion } from 'framer-motion';
 import Stage from './Stage';
-import particlesData from '@/data/about-particles.json';
-
 export default function AboutSection() {
   const sectionRef = useRef<HTMLElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const inkImgRef = useRef<HTMLImageElement | null>(null);
+  const particlesRef = useRef<number[][] | null>(null);
   const [imgLoaded, setImgLoaded] = useState(false);
   const shouldReduceMotion = useReducedMotion();
+
+  // Lazy-load the 236KB particles dataset during idle time or when entering section
+  useEffect(() => {
+    const loadParticles = () => {
+      if (particlesRef.current) return;
+      import('@/data/about-particles.json').then((mod) => {
+        particlesRef.current = mod.default as unknown as number[][];
+        if (isVisibleRef.current) {
+          renderFrame(smoothProgress.get());
+        }
+      });
+    };
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      const id = (window as unknown as { requestIdleCallback: (cb: () => void, opts: { timeout: number }) => number }).requestIdleCallback(
+        loadParticles,
+        { timeout: 3000 }
+      );
+      return () => {
+        if ('cancelIdleCallback' in window) {
+          (window as unknown as { cancelIdleCallback: (id: number) => void }).cancelIdleCallback(id);
+        }
+      };
+    } else {
+      loadParticles();
+    }
+  }, []);
 
   // Scroll tracking for the rolling star (direct hardware-accelerated transform, zero spring lag)
   const { scrollY } = useScroll();
@@ -95,15 +121,27 @@ export default function AboutSection() {
 
       ctx.clearRect(0, 0, w, h);
 
+      const particles = particlesRef.current;
+      if (!particles) {
+        // Fallback gentle opacity blend if particles are still fetching
+        if (inkImgRef.current && inkImgRef.current.complete) {
+          ctx.save();
+          ctx.globalAlpha = Math.min(1, prog * 1.5);
+          ctx.drawImage(inkImgRef.current, 0, 0, w, h);
+          ctx.restore();
+        }
+        return;
+      }
+
       // Draw particle mask
       ctx.save();
       ctx.beginPath();
 
       const spreadWindow = 0.22;
-      const count = particlesData.length;
+      const count = particles.length;
 
       for (let i = 0; i < count; i += 3) {
-        const pt = particlesData[i];
+        const pt = particles[i];
         const birth = pt[2];
         if (birth > prog) break;
 
@@ -196,7 +234,7 @@ export default function AboutSection() {
           className="stage-img"
           src="/images/about-bg-clean.webp"
           alt="About Me — collage with torn paper, vintage film strips, bio, tools and what I do"
-          loading="eager"
+          loading="lazy"
           decoding="async"
         />
 

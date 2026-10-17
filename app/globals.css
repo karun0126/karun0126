@@ -3,7 +3,6 @@
    Pixel-perfect implementation with Framer Motion & Responsive Canvas
    ========================================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,700;1,400;1,700&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@700;800&display=swap');
 
 /* Fallback & Custom Fonts */
 @font-face { font-family: "Dirty Ego"; src: local("Dirty Ego"); font-display: swap; }
@@ -825,7 +824,7 @@ body {
 .poster-card-visual {
   position: absolute;
   inset: 0;
-  background-image: url('/images/posters-slice.jpg');
+  background-image: url('/images/posters-slice.webp');
   background-size: 1920px 2160px;
   background-repeat: no-repeat;
   /* background-position set inline: -cardX px -cardY px */

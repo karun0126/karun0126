@@ -6,11 +6,15 @@ import HudNav from '@/components/HudNav';
 import BackToTop from '@/components/BackToTop';
 import HeroSection from '@/components/HeroSection';
 import AboutSection from '@/components/AboutSection';
+import dynamic from 'next/dynamic';
 import PostersSection, { POSTERS } from '@/components/PostersSection';
 import CaseStudyShowcaseSection from '@/components/CaseStudyShowcaseSection';
 import SketchbookSection from '@/components/SketchbookSection';
-import LightboxModal from '@/components/LightboxModal';
 import Footer from '@/components/Footer';
+
+const LightboxModal = dynamic(() => import('@/components/LightboxModal'), {
+  ssr: false,
+});
 
 export default function Home() {
   const [lightbox, setLightbox] = useState<{

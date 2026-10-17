@@ -99,7 +99,7 @@ export default function CaseStudyShowcaseSection() {
         {/* ── 1. Figma Master Base: 01/02 Stencils, Vector 14 & Grid (Desktop - 33) ── */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <motion.img
-          src="/images/case-study-desktop-33-bg.png"
+          src="/images/case-study-desktop-33-bg.webp"
           alt="Case Study Warped Dome and Layout"
           className="cs-stage-base-art"
           style={{
@@ -111,7 +111,8 @@ export default function CaseStudyShowcaseSection() {
             pointerEvents: 'none',
             userSelect: 'none',
           }}
-          loading="eager"
+          loading="lazy"
+          decoding="async"
           animate={{
             opacity: 1,
           }}
@@ -135,6 +136,8 @@ export default function CaseStudyShowcaseSection() {
           <motion.img
             src="/images/case-study-dome-figma.webp"
             alt="Case Study Red Sun Dome"
+            loading="lazy"
+            decoding="async"
             style={{
               width: '100%',
               height: '100%',
@@ -223,7 +226,7 @@ export default function CaseStudyShowcaseSection() {
           }}
         >
           <motion.img
-            src="/images/case-study-star-center.png"
+            src="/images/case-study-star-center.webp"
             alt=""
             style={{
               width: '100%',
@@ -255,7 +258,7 @@ export default function CaseStudyShowcaseSection() {
           }}
         >
           <motion.img
-            src="/images/case-study-star-left.png"
+            src="/images/case-study-star-left.webp"
             alt=""
             style={{
               width: '100%',
@@ -348,7 +351,7 @@ export default function CaseStudyShowcaseSection() {
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/images/case-study-card-01.png"
+                src="/images/case-study-card-01.webp"
                 alt="Dead Signal Brand Identity"
                 style={{
                   width: '100%',
@@ -468,7 +471,7 @@ export default function CaseStudyShowcaseSection() {
           }}
         >
           <motion.img
-            src="/images/case-study-star-right.png"
+            src="/images/case-study-star-right.webp"
             alt=""
             style={{
               width: '100%',
@@ -561,7 +564,7 @@ export default function CaseStudyShowcaseSection() {
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/images/case-study-card-02.png"
+                src="/images/case-study-card-02.webp"
                 alt="Nova Music Campaign"
                 style={{
                   width: '100%',
