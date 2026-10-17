@@ -23,17 +23,42 @@ export default function AboutSection() {
   });
 
   const smoothProgress = useSpring(scrollYProgress, {
-    stiffness: 140,
-    damping: 24,
+    stiffness: 160,
+    damping: 26,
     mass: 0.08,
-    restDelta: 0.001,
+    restDelta: 0.004,
   });
 
   const hasDrawnFullRef = useRef(false);
+  const isVisibleRef = useRef(false);
+
+  // Viewport intersection observer to completely halt canvas work when off-screen
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      isVisibleRef.current = true;
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        isVisibleRef.current = entry.isIntersecting;
+        if (entry.isIntersecting) {
+          renderFrame(smoothProgress.get());
+        }
+      },
+      { rootMargin: '150px 0px 150px 0px' }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [smoothProgress]);
 
   // Render particle ink reveal frame onto the 1400x1420 retina canvas
   const renderFrame = useCallback(
     (prog: number) => {
+      if (!isVisibleRef.current && hasDrawnFullRef.current) return;
+
       const canvas = canvasRef.current;
       if (!canvas) return;
       const ctx = canvas.getContext('2d');
@@ -43,7 +68,7 @@ export default function AboutSection() {
       const h = 1420;
 
       const isMobileDevice = typeof window !== 'undefined' && window.innerWidth < 768;
-      const fullThreshold = isMobileDevice ? 0.75 : 0.95;
+      const fullThreshold = isMobileDevice ? 0.75 : 0.92;
 
       // When fully revealed or motion reduced, draw once and freeze canvas rendering completely
       if (shouldReduceMotion || isMobileDevice || prog >= fullThreshold) {
@@ -77,7 +102,7 @@ export default function AboutSection() {
       const spreadWindow = 0.22;
       const count = particlesData.length;
 
-      for (let i = 0; i < count; i += 2) {
+      for (let i = 0; i < count; i += 3) {
         const pt = particlesData[i];
         const birth = pt[2];
         if (birth > prog) break;
@@ -101,10 +126,10 @@ export default function AboutSection() {
 
       ctx.restore();
 
-      // Subtle blend in final phase (0.88 - 0.98) to smoothly resolve into 100% sharp typography
-      if (prog > 0.88 && inkImgRef.current) {
+      // Subtle blend in final phase (0.84 - 0.95) to smoothly resolve into 100% sharp typography
+      if (prog > 0.84 && inkImgRef.current) {
         ctx.save();
-        ctx.globalAlpha = (prog - 0.88) / 0.10;
+        ctx.globalAlpha = Math.min(1, (prog - 0.84) / 0.10);
         ctx.drawImage(inkImgRef.current, 0, 0, w, h);
         ctx.restore();
       }
@@ -141,6 +166,7 @@ export default function AboutSection() {
     renderFrame(latestProg);
 
     const unsubscribe = smoothProgress.on('change', (val) => {
+      if (!isVisibleRef.current) return;
       latestProg = Math.min(1, Math.max(0, val));
       if (rafId === null) {
         rafId = requestAnimationFrame(() => {

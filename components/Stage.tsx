@@ -25,7 +25,8 @@ export default function Stage({
       if (containerRef.current) {
         const clientWidth = containerRef.current.clientWidth;
         if (clientWidth > 0) {
-          setScale(clientWidth / baseWidth);
+          const nextScale = clientWidth / baseWidth;
+          setScale((prev) => (Math.abs(prev - nextScale) < 0.0008 ? prev : nextScale));
         }
       }
     };

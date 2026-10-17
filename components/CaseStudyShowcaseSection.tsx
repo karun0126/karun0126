@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { motion, useScroll, useTransform, useReducedMotion } from 'framer-motion';
+import { motion, useScroll, useTransform, useMotionValue, useSpring, useReducedMotion } from 'framer-motion';
 import Stage from './Stage';
 import { useRedSunTransition } from './RedSunTransition';
 
@@ -23,18 +23,27 @@ export default function CaseStudyShowcaseSection() {
   // Spotlight hover state: 'dead-signal' | 'nova' | null
   const [hoveredProject, setHoveredProject] = useState<'dead-signal' | 'nova' | null>(null);
 
-  // 3D Parallax Tilt state for both cards
-  const [leftTilt, setLeftTilt] = useState({ x: 0, y: 0, active: false });
-  const [rightTilt, setRightTilt] = useState({ x: 0, y: 0, active: false });
+  // 3D Parallax Tilt with Framer Motion Springs (0% React re-render overhead on mouse movement)
+  const leftTiltX = useMotionValue(0);
+  const leftTiltY = useMotionValue(0);
+  const leftRotateX = useSpring(leftTiltX, { stiffness: 400, damping: 28 });
+  const leftRotateY = useSpring(leftTiltY, { stiffness: 400, damping: 28 });
+
+  const rightTiltX = useMotionValue(0);
+  const rightTiltY = useMotionValue(0);
+  const rightRotateX = useSpring(rightTiltX, { stiffness: 400, damping: 28 });
+  const rightRotateY = useSpring(rightTiltY, { stiffness: 400, damping: 28 });
 
   const handleLeftMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width - 0.5;
     const y = (e.clientY - rect.top) / rect.height - 0.5;
-    setLeftTilt({ x: -(y * 18), y: x * 18, active: true });
+    leftTiltX.set(-(y * 18));
+    leftTiltY.set(x * 18);
   };
   const handleLeftMouseLeave = () => {
-    setLeftTilt({ x: 0, y: 0, active: false });
+    leftTiltX.set(0);
+    leftTiltY.set(0);
     setHoveredProject(null);
   };
 
@@ -42,10 +51,12 @@ export default function CaseStudyShowcaseSection() {
     const rect = e.currentTarget.getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width - 0.5;
     const y = (e.clientY - rect.top) / rect.height - 0.5;
-    setRightTilt({ x: -(y * 18), y: x * 18, active: true });
+    rightTiltX.set(-(y * 18));
+    rightTiltY.set(x * 18);
   };
   const handleRightMouseLeave = () => {
-    setRightTilt({ x: 0, y: 0, active: false });
+    rightTiltX.set(0);
+    rightTiltY.set(0);
     setHoveredProject(null);
   };
 
@@ -258,13 +269,11 @@ export default function CaseStudyShowcaseSection() {
                 ? { opacity: 1 }
                 : isDeadSignalActive
                 ? {
-                    y: 0,
                     rotate: 360,
                     scale: 1.08,
                     filter: 'brightness(1.25) drop-shadow(0 0 28px rgba(220, 36, 36, 0.5))',
                   }
                 : {
-                    y: [-4, 4, -4],
                     rotate: 360,
                     scale: 1,
                     filter: 'brightness(1)',
@@ -278,7 +287,6 @@ export default function CaseStudyShowcaseSection() {
                     filter: { duration: 0.3 },
                   }
                 : {
-                    y: { repeat: Infinity, duration: 6, ease: 'easeInOut' },
                     rotate: { repeat: Infinity, duration: 22, ease: 'linear' },
                     scale: { duration: 0.4, ease: 'easeOut' },
                     filter: { duration: 0.4 },
@@ -316,27 +324,23 @@ export default function CaseStudyShowcaseSection() {
                 cursor: 'pointer',
                 position: 'relative',
                 transformStyle: 'preserve-3d',
+                rotateX: leftRotateX,
+                rotateY: leftRotateY,
               }}
               animate={
                 isDeadSignalActive
                   ? {
-                      rotateX: leftTilt.active ? leftTilt.x : 0,
-                      rotateY: leftTilt.active ? leftTilt.y : 0,
                       y: -10,
                       scale: 1.05,
                       filter: 'drop-shadow(0 25px 45px rgba(0, 0, 0, 0.85)) brightness(1.08)',
                     }
                   : {
-                      rotateX: 0,
-                      rotateY: 0,
                       y: 0,
                       scale: 1,
                       filter: 'drop-shadow(0 10px 25px rgba(0, 0, 0, 0.5)) brightness(1)',
                     }
               }
               transition={{
-                rotateX: { type: 'spring', stiffness: 350, damping: 25 },
-                rotateY: { type: 'spring', stiffness: 350, damping: 25 },
                 scale: { type: 'spring', stiffness: 300, damping: 22 },
                 y: { type: 'spring', stiffness: 300, damping: 22 },
                 filter: { duration: 0.3 },
@@ -478,13 +482,11 @@ export default function CaseStudyShowcaseSection() {
                 ? { opacity: 1 }
                 : isNovaActive
                 ? {
-                    y: 0,
                     rotate: 360,
                     scale: 1.08,
                     filter: 'brightness(1.25) drop-shadow(0 0 28px rgba(70, 130, 240, 0.5))',
                   }
                 : {
-                    y: [-4, 4, -4],
                     rotate: 360,
                     scale: 1,
                     filter: 'brightness(1)',
@@ -498,7 +500,6 @@ export default function CaseStudyShowcaseSection() {
                     filter: { duration: 0.3 },
                   }
                 : {
-                    y: { repeat: Infinity, duration: 6, ease: 'easeInOut' },
                     rotate: { repeat: Infinity, duration: 22, ease: 'linear' },
                     scale: { duration: 0.4, ease: 'easeOut' },
                     filter: { duration: 0.4 },
@@ -536,27 +537,23 @@ export default function CaseStudyShowcaseSection() {
                 cursor: 'pointer',
                 position: 'relative',
                 transformStyle: 'preserve-3d',
+                rotateX: rightRotateX,
+                rotateY: rightRotateY,
               }}
               animate={
                 isNovaActive
                   ? {
-                      rotateX: rightTilt.active ? rightTilt.x : 0,
-                      rotateY: rightTilt.active ? rightTilt.y : 0,
                       y: -10,
                       scale: 1.05,
                       filter: 'drop-shadow(0 25px 45px rgba(0, 0, 0, 0.85)) brightness(1.08)',
                     }
                   : {
-                      rotateX: 0,
-                      rotateY: 0,
                       y: 0,
                       scale: 1,
                       filter: 'drop-shadow(0 10px 25px rgba(0, 0, 0, 0.5)) brightness(1)',
                     }
               }
               transition={{
-                rotateX: { type: 'spring', stiffness: 350, damping: 25 },
-                rotateY: { type: 'spring', stiffness: 350, damping: 25 },
                 scale: { type: 'spring', stiffness: 300, damping: 22 },
                 y: { type: 'spring', stiffness: 300, damping: 22 },
                 filter: { duration: 0.3 },

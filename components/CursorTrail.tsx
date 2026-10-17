@@ -1,161 +1,131 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import lumData from '@/lum-bits.json';
 
-interface Point {
-  x: number;
-  y: number;
+interface ShockwaveRipple {
+  el: SVGCircleElement;
+  startT: number;
+  duration: number;
+  startR: number;
+  maxR: number;
+  initialStroke: number;
 }
 
 export default function CursorTrail() {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const dotRef = useRef<HTMLDivElement | null>(null);
+  const shockwaveRef = useRef<HTMLDivElement | null>(null);
+  const ringsGroupRef = useRef<SVGGElement | null>(null);
 
   useEffect(() => {
-    // Only enable on desktop/laptops with a mouse or trackpad
+    // Only enable on desktop/laptop devices with a fine pointer (mouse or trackpad)
     if (typeof window === 'undefined') return;
     const isFinePointer = window.matchMedia('(pointer: fine)').matches;
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (!isFinePointer || prefersReducedMotion) return;
 
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const dotEl = dotRef.current;
+    const shockwaveEl = shockwaveRef.current;
+    const ringsGroupEl = ringsGroupRef.current;
+    if (!dotEl || !shockwaveEl || !ringsGroupEl) return;
 
-    const ctx = canvas.getContext('2d', { alpha: true });
-    if (!ctx) return;
+    // Radius configurations:
+    // Base radius: 18px (36px diameter)
+    // On hover: 13px (26px diameter) — focused surgical size
+    const BASE_RADIUS = 18;
+    const BASE_SCALE = 1.0;
+    const HOVER_SCALE = 13 / 18; // ~0.722
+    const CLICK_SCALE_FACTOR = 0.82;
 
-    let width = window.innerWidth;
-    let height = window.innerHeight;
-    let dpr = Math.min(window.devicePixelRatio || 1, 2);
+    let mouse = { x: -200, y: -200 };
+    let currentScale = BASE_SCALE;
+    let targetScale = BASE_SCALE;
 
-    const resize = () => {
-      width = window.innerWidth;
-      height = window.innerHeight;
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = width * dpr;
-      canvas.height = height * dpr;
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    };
-
-    resize();
-    window.addEventListener('resize', resize, { passive: true });
-
-    // Physics Nodes
-    // 16 snappy, critically-damped nodes guarantee zero delay and zero rubber-banding
-    const NUM_NODES = 16;
-    const nodes: Point[] = Array.from({ length: NUM_NODES }, () => ({ x: -100, y: -100 }));
-    let mouse: Point = { x: -100, y: -100 };
     let hasMoved = false;
     let isMouseInWindow = false;
+    let isMouseDown = false;
+    let isInteractiveHover = false;
     let rafId: number | null = null;
 
-    // Dynamic color adaptation:
-    // 0.0 = greyish-black ink (on light cream paper), 1.0 = crimson red (on black/dark colors)
-    let currentRedMix = 1.0;
+    // Array to manage active expanding shockwave rings
+    const ripples: ShockwaveRipple[] = [];
 
-    const { aboutBits, heroBits, postersBits } = lumData;
+    let lastHoverTarget: EventTarget | null = null;
 
-    // Document-space section bounds (calculated on mount & debounced resize, ZERO scroll reflows)
-    let cachedDocSections: Record<string, { top: number; bottom: number; left: number; width: number; height: number }> = {};
+    const INTERACTIVE_SELECTOR =
+      'a, button, [role="button"], input, textarea, select, label, .hud-capsule, .hud-simple-item, .poster-hotspot, .poster-pendulum-outer, .lightbox-trigger, .interactive, [data-cursor-hover], [data-interactive]';
 
-    const updateDocSectionCache = () => {
-      const scrollY = window.scrollY;
-      const ids = ['case-study', 'sketchbook', 'about', 'posters', 'hero'];
-      for (const id of ids) {
-        const el = document.getElementById(id);
-        if (el) {
-          const r = el.getBoundingClientRect();
-          cachedDocSections[id] = {
-            top: r.top + scrollY,
-            bottom: r.bottom + scrollY,
-            left: r.left,
-            width: r.width,
-            height: r.height,
-          };
-        }
+    const updateHoverTarget = (rawTarget: EventTarget | null) => {
+      if (rawTarget === lastHoverTarget) return;
+      lastHoverTarget = rawTarget;
+
+      const target = rawTarget instanceof Element ? rawTarget : null;
+      if (!target) {
+        isInteractiveHover = false;
+        targetScale = BASE_SCALE;
+        return;
       }
-      const footer = document.querySelector('footer');
-      if (footer) {
-        const r = footer.getBoundingClientRect();
-        cachedDocSections['footer'] = {
-          top: r.top + scrollY,
-          bottom: r.bottom + scrollY,
-          left: r.left,
-          width: r.width,
-          height: r.height,
-        };
+
+      // Fast check for common interactive tags
+      const tag = target.tagName;
+      if (tag === 'BUTTON' || tag === 'A' || tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || tag === 'LABEL') {
+        isInteractiveHover = true;
+        targetScale = isMouseDown ? HOVER_SCALE * CLICK_SCALE_FACTOR : HOVER_SCALE;
+        return;
+      }
+
+      // Fast selector search without expensive wildcard style attributes
+      const isClickable = typeof target.closest === 'function' && Boolean(target.closest(INTERACTIVE_SELECTOR));
+      isInteractiveHover = isClickable;
+      targetScale = isInteractiveHover ? HOVER_SCALE : BASE_SCALE;
+      if (isMouseDown) targetScale *= CLICK_SCALE_FACTOR;
+    };
+
+    const wakeRender = () => {
+      if (rafId === null) {
+        rafId = requestAnimationFrame(render);
       }
     };
 
-    updateDocSectionCache();
-    setTimeout(updateDocSectionCache, 500);
-    let resizeTimer: NodeJS.Timeout | null = null;
-    const debouncedMeasure = () => {
-      if (resizeTimer) clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(updateDocSectionCache, 150);
-    };
-    window.addEventListener('resize', debouncedMeasure, { passive: true });
+    /**
+     * Spawns a fast expanding inverted shockwave ring that starts fatter and tapers smaller as it expands
+     */
+    const triggerShockwave = (x: number, y: number) => {
+      // Calculate max radius needed to reach the furthest corner of the viewport
+      const maxR = Math.hypot(
+        Math.max(x, window.innerWidth - x),
+        Math.max(y, window.innerHeight - y)
+      ) + 60;
 
-    // High-performance background luminance detection under cursor (zero layout thrashing, pure arithmetic)
-    const isDarkAt = (clientX: number, clientY: number): boolean => {
-      const docY = clientY + window.scrollY;
+      const ringEl = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      ringEl.setAttribute('cx', x.toFixed(1));
+      ringEl.setAttribute('cy', y.toFixed(1));
+      ringEl.setAttribute('fill', 'none');
+      ringEl.setAttribute('stroke', '#ffffff');
 
-      // Check section bounding boxes from cache
-      const cs = cachedDocSections['case-study'];
-      if (cs && docY >= cs.top && docY <= cs.bottom) return true;
+      // Sleek, refined initial stroke width at start (reduced from 48px to 34px)
+      const INITIAL_STROKE = 34;
+      // Start radius hugs the outside perimeter of the current cursor dot
+      const currentRadius = BASE_RADIUS * currentScale;
+      const startR = currentRadius + INITIAL_STROKE / 2;
 
-      const sb = cachedDocSections['sketchbook'];
-      if (sb && docY >= sb.top && docY <= sb.bottom) return true;
+      ringEl.setAttribute('stroke-width', INITIAL_STROKE.toString());
+      ringEl.setAttribute('r', startR.toFixed(1));
+      ringEl.setAttribute('stroke-opacity', '1');
+      ringsGroupEl.appendChild(ringEl);
 
-      const ft = cachedDocSections['footer'];
-      if (ft && docY >= ft.top) return true;
+      ripples.push({
+        el: ringEl,
+        startT: performance.now(),
+        duration: 520, // Snappy & fast expansion across the entire screen
+        startR,
+        maxR,
+        initialStroke: INITIAL_STROKE,
+      });
 
-      // Detailed bitmask lookup for collage sections
-      const ab = cachedDocSections['about'];
-      if (ab && docY >= ab.top && docY <= ab.bottom && ab.width > 0 && ab.height > 0) {
-        const u = Math.max(0, Math.min(31, Math.floor(((clientX - ab.left) / ab.width) * 32)));
-        const v = Math.max(0, Math.min(17, Math.floor(((docY - ab.top) / ab.height) * 18)));
-        return aboutBits[v * 32 + u] === '1';
-      }
+      // Enable the fullscreen shockwave overlay only while ripples are active
+      shockwaveEl.style.display = 'block';
 
-      const po = cachedDocSections['posters'];
-      if (po && docY >= po.top && docY <= po.bottom && po.width > 0 && po.height > 0) {
-        const u = Math.max(0, Math.min(31, Math.floor(((clientX - po.left) / po.width) * 32)));
-        const v = Math.max(0, Math.min(35, Math.floor(((docY - po.top) / po.height) * 36)));
-        return postersBits[v * 32 + u] === '1';
-      }
-
-      const he = cachedDocSections['hero'];
-      if (he && docY >= he.top && docY <= he.bottom && he.width > 0 && he.height > 0) {
-        const u = Math.max(0, Math.min(31, Math.floor(((clientX - he.left) / he.width) * 32)));
-        const v = Math.max(0, Math.min(17, Math.floor(((docY - he.top) / he.height) * 18)));
-        return heroBits[v * 32 + u] === '1';
-      }
-
-      return true;
-    };
-
-    // Chaikin corner-cutting smoothing algorithm:
-    // Transforms any polygonal sequence into a mathematical, continuous C1 curve
-    const chaikinSmooth = (pts: Point[]): Point[] => {
-      if (pts.length < 3) return pts;
-      const res: Point[] = [pts[0]];
-      for (let i = 0; i < pts.length - 1; i++) {
-        const p0 = pts[i];
-        const p1 = pts[i + 1];
-        res.push({
-          x: 0.75 * p0.x + 0.25 * p1.x,
-          y: 0.75 * p0.y + 0.25 * p1.y,
-        });
-        res.push({
-          x: 0.25 * p0.x + 0.75 * p1.x,
-          y: 0.25 * p0.y + 0.75 * p1.y,
-        });
-      }
-      res.push(pts[pts.length - 1]);
-      return res;
+      wakeRender();
     };
 
     const onMouseMove = (e: MouseEvent) => {
@@ -165,203 +135,198 @@ export default function CursorTrail() {
       if (!hasMoved) {
         hasMoved = true;
         isMouseInWindow = true;
-        for (let i = 0; i < NUM_NODES; i++) {
-          nodes[i].x = mouse.x;
-          nodes[i].y = mouse.y;
-        }
-      } else {
-        isMouseInWindow = true;
-        // ZERO DELAY: Lock the head of the tail directly to the cursor position!
-        nodes[0].x = mouse.x;
-        nodes[0].y = mouse.y;
+        dotEl.style.opacity = '1';
       }
 
-      if (rafId === null) {
-        rafId = requestAnimationFrame(render);
-      }
+      // Zero-latency hardware transform tracking
+      dotEl.style.transform = `translate3d(${(mouse.x - BASE_RADIUS).toFixed(1)}px, ${(mouse.y - BASE_RADIUS).toFixed(1)}px, 0) scale(${currentScale.toFixed(3)})`;
+
+      updateHoverTarget(e.target);
+      wakeRender();
+    };
+
+    const onMouseDown = (e: MouseEvent) => {
+      isMouseDown = true;
+      updateHoverTarget(e.target);
+      triggerShockwave(e.clientX, e.clientY);
+      wakeRender();
+    };
+
+    const onMouseUp = (e: MouseEvent) => {
+      isMouseDown = false;
+      updateHoverTarget(e.target);
+      wakeRender();
     };
 
     const onMouseLeave = () => {
       isMouseInWindow = false;
+      dotEl.style.opacity = '0';
     };
 
     const onMouseEnter = (e: MouseEvent) => {
       isMouseInWindow = true;
+      dotEl.style.opacity = '1';
       mouse.x = e.clientX;
       mouse.y = e.clientY;
-      if (!hasMoved) {
-        hasMoved = true;
-        for (let i = 0; i < NUM_NODES; i++) {
-          nodes[i].x = mouse.x;
-          nodes[i].y = mouse.y;
-        }
-      } else {
-        nodes[0].x = mouse.x;
-        nodes[0].y = mouse.y;
-      }
-      if (rafId === null) {
-        rafId = requestAnimationFrame(render);
-      }
+      hasMoved = true;
+      dotEl.style.transform = `translate3d(${(mouse.x - BASE_RADIUS).toFixed(1)}px, ${(mouse.y - BASE_RADIUS).toFixed(1)}px, 0) scale(${currentScale.toFixed(3)})`;
+      updateHoverTarget(e.target);
+      wakeRender();
     };
 
     window.addEventListener('mousemove', onMouseMove, { passive: true });
+    window.addEventListener('mousedown', onMouseDown, { passive: true });
+    window.addEventListener('mouseup', onMouseUp, { passive: true });
     document.addEventListener('mouseleave', onMouseLeave);
     document.addEventListener('mouseenter', onMouseEnter);
 
     const render = () => {
-      // Optimization: when full-screen page transition is active, pause canvas rendering for 120 FPS
+      // Pause/hide during full-screen page transitions
       if (document.body.classList.contains('is-transitioning')) {
-        ctx.clearRect(0, 0, width, height);
+        dotEl.style.opacity = '0';
+        if (shockwaveEl.style.display !== 'none') {
+          shockwaveEl.style.display = 'none';
+        }
         rafId = requestAnimationFrame(render);
         return;
+      } else if (isMouseInWindow && hasMoved) {
+        dotEl.style.opacity = '1';
       }
-
-      ctx.clearRect(0, 0, width, height);
 
       if (!hasMoved) {
         rafId = null;
         return;
       }
 
-      // ZERO DELAY: Node 0 stays pinned directly to cursor pointer
-      nodes[0].x = mouse.x;
-      nodes[0].y = mouse.y;
+      // Smooth scale interpolation for hover focus and click squish
+      currentScale += (targetScale - currentScale) * 0.25;
+      dotEl.style.transform = `translate3d(${(mouse.x - BASE_RADIUS).toFixed(1)}px, ${(mouse.y - BASE_RADIUS).toFixed(1)}px, 0) scale(${currentScale.toFixed(3)})`;
 
-      // Trailing nodes follow with responsive progressive lerp (0.72 down to 0.54)
-      let totalDist = 0;
-      for (let i = 1; i < NUM_NODES; i++) {
-        const ease = 0.72 - (i / NUM_NODES) * 0.18;
-        const dx = nodes[i - 1].x - nodes[i].x;
-        const dy = nodes[i - 1].y - nodes[i].y;
-        nodes[i].x += dx * ease;
-        nodes[i].y += dy * ease;
-        totalDist += Math.hypot(dx, dy);
+      // Animate active shockwave rings
+      const now = performance.now();
+      for (let i = ripples.length - 1; i >= 0; i--) {
+        const rip = ripples[i];
+        const elapsed = now - rip.startT;
+        const progress = Math.min(1, elapsed / rip.duration);
+
+        // Explosive outward burst easing: fast departure, decelerating smoothly
+        const ease = 1 - Math.pow(1 - progress, 2.2);
+        const r = rip.startR + ease * (rip.maxR - rip.startR);
+
+        // Stroke width starts refined and progressively narrows down as it expands
+        const strokeW = Math.max(2.5, rip.initialStroke * Math.pow(1 - progress, 1.35));
+
+        // Smooth fade out near the outer bounds of the screen
+        const opacity = progress > 0.8 ? (1 - progress) / 0.2 : 1.0;
+
+        rip.el.setAttribute('r', r.toFixed(1));
+        rip.el.setAttribute('stroke-width', strokeW.toFixed(1));
+        rip.el.setAttribute('stroke-opacity', opacity.toFixed(2));
+
+        if (progress >= 1) {
+          rip.el.remove();
+          ripples.splice(i, 1);
+        }
       }
 
-      // Detect background color under cursor:
-      // Red on black/dark void, Greyish-Black on cream paper
-      const targetRed = isDarkAt(mouse.x, mouse.y) ? 1.0 : 0.0;
-      currentRedMix += (targetRed - currentRedMix) * 0.18;
+      // Turn off fullscreen shockwave overlay when no ripples are active (eliminates GPU load completely)
+      if (ripples.length === 0) {
+        shockwaveEl.style.display = 'none';
+      }
 
-      // If trail has fully gathered at cursor, shut down render loop to save CPU
-      if (totalDist < 0.5) {
+      // Auto-sleep RAF when stationary and no ripples active
+      if (ripples.length === 0 && Math.abs(currentScale - targetScale) < 0.005) {
+        currentScale = targetScale;
+        dotEl.style.transform = `translate3d(${(mouse.x - BASE_RADIUS).toFixed(1)}px, ${(mouse.y - BASE_RADIUS).toFixed(1)}px, 0) scale(${currentScale.toFixed(3)})`;
         rafId = null;
         return;
-      }
-
-      // Apply Chaikin smoothing to ensure 100% rounded curves with zero sharp edges
-      const smoothed = chaikinSmooth(nodes);
-
-      // Calculate arc-length distances along smoothed spline
-      const dists: number[] = [0];
-      for (let i = 1; i < smoothed.length; i++) {
-        const d = Math.hypot(
-          smoothed[i].x - smoothed[i - 1].x,
-          smoothed[i].y - smoothed[i - 1].y
-        );
-        dists.push(dists[i - 1] + d);
-      }
-      const totalLen = dists[dists.length - 1];
-
-      if (totalLen >= 1.0) {
-        // Slender, refined brush stroke radius (reduced width per user request)
-        const BASE_RADIUS = 2.8; 
-        const step = 1.4;        // Dense sampling step in pixels for silky continuity
-        let currIdx = 0;
-
-        // Sample points along the spline
-        const samples: { x: number; y: number; r: number }[] = [];
-
-        for (let d = 0; d <= totalLen; d += step) {
-          while (currIdx < dists.length - 1 && dists[currIdx + 1] < d) {
-            currIdx++;
-          }
-          const segStart = dists[currIdx];
-          const segEnd = dists[currIdx + 1];
-          const segT = (d - segStart) / (segEnd - segStart || 1);
-          const x = smoothed[currIdx].x + (smoothed[currIdx + 1].x - smoothed[currIdx].x) * segT;
-          const y = smoothed[currIdx].y + (smoothed[currIdx + 1].y - smoothed[currIdx].y) * segT;
-
-          const t = d / totalLen; // 0 at cursor, 1 at tail tip
-          // Taper radius smoothly from 2.8px down to 0.28px
-          const r = Math.max(0.28, BASE_RADIUS * Math.pow(1 - t, 1.25));
-
-          samples.push({ x, y, r });
-        }
-
-        // Color interpolation:
-        // redMix = 0.0 -> Greyish Black (35, 35, 35) on cream paper
-        // redMix = 1.0 -> Signature Crimson Red (230, 20, 25) on black colors
-        const rVal = Math.round(35 + 195 * currentRedMix);
-        const gVal = Math.round(35 - 15 * currentRedMix);
-        const bVal = Math.round(35 - 10 * currentRedMix);
-
-        // Pass 1: Subtle aura/shadow
-        // On black: delicate crimson glow. On paper: subtle soft ink definition.
-        if (currentRedMix > 0.1) {
-          ctx.fillStyle = `rgba(230, 20, 25, ${(0.22 * currentRedMix).toFixed(2)})`;
-          ctx.beginPath();
-          for (let i = 0; i < samples.length; i++) {
-            const s = samples[i];
-            const shadowRRadius = s.r + 1.2;
-            ctx.moveTo(s.x + shadowRRadius, s.y + 0.8);
-            ctx.arc(s.x, s.y + 0.8, shadowRRadius, 0, Math.PI * 2);
-          }
-          ctx.fill();
-        }
-
-        // Pass 2: Main Tapered Stroke
-        // Grouped by opacity levels to create a buttery smooth gradient without bead artifacts
-        const opacityGroups = [
-          { minT: 0.0, maxT: 0.55, alpha: 0.98 },
-          { minT: 0.55, maxT: 0.75, alpha: 0.80 },
-          { minT: 0.75, maxT: 0.90, alpha: 0.50 },
-          { minT: 0.90, maxT: 1.01, alpha: 0.22 },
-        ];
-
-        for (const group of opacityGroups) {
-          ctx.fillStyle = `rgba(${rVal}, ${gVal}, ${bVal}, ${group.alpha})`;
-          ctx.beginPath();
-          const startIdx = Math.floor(group.minT * (samples.length - 1));
-          const endIdx = Math.min(samples.length - 1, Math.floor(group.maxT * (samples.length - 1)));
-
-          for (let i = startIdx; i <= endIdx; i++) {
-            const s = samples[i];
-            ctx.moveTo(s.x + s.r, s.y);
-            ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-          }
-          ctx.fill();
-        }
       }
 
       rafId = requestAnimationFrame(render);
     };
 
     return () => {
-      window.removeEventListener('resize', resize);
-      window.removeEventListener('resize', debouncedMeasure);
-      if (resizeTimer) clearTimeout(resizeTimer);
       window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('mouseup', onMouseUp);
       document.removeEventListener('mouseleave', onMouseLeave);
       document.removeEventListener('mouseenter', onMouseEnter);
       if (rafId !== null) cancelAnimationFrame(rafId);
+      for (const rip of ripples) {
+        rip.el.remove();
+      }
+      ripples.length = 0;
     };
   }, []);
 
   return (
-    <canvas
-      ref={canvasRef}
-      id="cursor-canvas"
-      aria-hidden="true"
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
-        pointerEvents: 'none',
-        zIndex: 99999,
-      }}
-    />
+    <>
+      {/* 1. Resting Inverted Circle: Lightweight 36px hardware-accelerated GPU layer with zero overhead */}
+      <div
+        ref={dotRef}
+        id="cursor-dot-bw"
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '36px',
+          height: '36px',
+          borderRadius: '50%',
+          backdropFilter: 'invert(1) grayscale(1)',
+          WebkitBackdropFilter: 'invert(1) grayscale(1)',
+          zIndex: 99999,
+          pointerEvents: 'none',
+          opacity: 0,
+          transformOrigin: 'center center',
+          transform: 'translate3d(-100px, -100px, 0)',
+          willChange: 'transform',
+          contain: 'layout paint size',
+          transition: 'opacity 0.22s ease-out',
+        }}
+      />
+
+      {/* 2. SVG Mask for Shockwave Rings */}
+      <svg
+        id="cursor-shockwave-svg-defs"
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: 0,
+          height: 0,
+          pointerEvents: 'none',
+          zIndex: -1,
+        }}
+      >
+        <defs>
+          <mask id="cursor-shockwave-mask">
+            <g ref={ringsGroupRef} />
+          </mask>
+        </defs>
+      </svg>
+
+      {/* 3. Fullscreen Shockwave Overlay: ONLY displayed when ripples are actively expanding */}
+      <div
+        ref={shockwaveRef}
+        id="cursor-shockwave-bw"
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          backdropFilter: 'invert(1) grayscale(1)',
+          WebkitBackdropFilter: 'invert(1) grayscale(1)',
+          mask: 'url(#cursor-shockwave-mask)',
+          WebkitMask: 'url(#cursor-shockwave-mask)',
+          zIndex: 99998,
+          pointerEvents: 'none',
+          display: 'none',
+        }}
+      />
+    </>
   );
 }

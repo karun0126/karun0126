@@ -113,6 +113,8 @@ body {
   z-index: 999;
   pointer-events: none;
   overflow: visible;
+  isolation: isolate;
+  contain: layout style;
 }
 
 /* ── The Mounting Rail Container (Preserved dark rounded navbar structure) ── */
@@ -689,7 +691,7 @@ body {
   height: 710px;
   pointer-events: none;
   z-index: 5;
-  will-change: contents;
+  transform: translateZ(0);
 }
 
 /* Screen reader text for SEO & Accessibility */
@@ -830,6 +832,8 @@ body {
   pointer-events: none;
   border-radius: 2px;
   z-index: 0;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 /* ==========================================================================
@@ -881,7 +885,6 @@ body {
   justify-content: center;
   overflow: hidden;
   border: 1px dashed rgba(255, 255, 255, 0.08) !important;
-  backdrop-filter: blur(1px);
 }
 
 .poster-recessed-slot .recessed-label {
@@ -945,6 +948,8 @@ body {
   width: 100%;
   background: #111;
   overflow: hidden;
+  content-visibility: auto;
+  contain-intrinsic-size: 1920px 6398px;
 }
 
 .sketchbook-full-frame {
@@ -953,6 +958,8 @@ body {
   aspect-ratio: 1920 / 6398;
   overflow: hidden;
   background: #0c0c0c;
+  content-visibility: auto;
+  contain-intrinsic-size: 1920px 6398px;
 }
 
 .sketchbook-full-frame .stage {
@@ -992,8 +999,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(18, 18, 18, 0.85);
-  backdrop-filter: blur(10px);
+  background: rgba(28, 28, 28, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.12);
   padding: 6px 14px;
   border-radius: 30px;
@@ -1017,8 +1023,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(18, 18, 18, 0.85);
-  backdrop-filter: blur(10px);
+  background: rgba(28, 28, 28, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 50%;
   color: #fff;
@@ -1042,8 +1047,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(18, 18, 18, 0.85);
-  backdrop-filter: blur(12px);
+  background: rgba(28, 28, 28, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 50%;
   color: #fff;

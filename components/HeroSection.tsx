@@ -58,6 +58,9 @@ export default function HeroSection() {
       onComplete: () => {
         setIsIntroComplete(true);
         document.body.style.overflow = originalOverflow;
+        if (movingGroupRef.current) {
+          movingGroupRef.current.style.willChange = 'auto';
+        }
         if (skipBtnRef.current) {
           gsap.to(skipBtnRef.current, {
             opacity: 0,

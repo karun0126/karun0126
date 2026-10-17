@@ -39,10 +39,6 @@ export default function RootLayout({
       <head>
         <link rel="preload" as="image" href="/images/hero-clean-bg.jpg" fetchPriority="high" />
         <link rel="preload" as="image" href="/images/hand-posters-collage.webp" />
-        <link rel="preload" as="image" href="/images/about-bg-clean.webp" />
-        <link rel="preload" as="image" href="/images/about-text-ink.webp" />
-        <link rel="preload" as="image" href="/images/posters-slice.jpg" />
-        <link rel="preload" as="image" href="/images/case-study-dome-figma.webp" />
       </head>
       <body>
         <CursorTrail />
